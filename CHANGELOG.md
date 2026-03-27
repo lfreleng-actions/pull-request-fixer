@@ -24,7 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CLI with Typer for user-friendly interface
 - Rich terminal output with progress tracking
 - GitHub client with GraphQL API support
-- Parallel processing of repositories and PRs concurrently
+- Parallel processing of repositories and PRs
 - Flexible sync strategies (none, rebase, merge)
 - Conflict resolution strategies
 

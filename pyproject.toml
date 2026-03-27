@@ -121,7 +121,7 @@ line-ending = "auto"
 pythonVersion = "3.12"
 pythonPlatform = "All"
 typeCheckingMode = "standard"
-include = ["src", "tests", "scripts"]
+include = ["src", "tests", "scripts", "test_blocked_pr_logic.py", "test_integration.py"]
 exclude = [
     "src/pull_request_fixer/_version.py",
     ".venv",
