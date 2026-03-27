@@ -273,7 +273,7 @@ pull-request-fixer myorg --fix-title --blocked-only
 ```
 <!-- write-good-enable -->
 
-**Fix files in multiple PRs:**
+**Fix files across PRs:**
 
 <!-- write-good-disable -->
 ```bash
@@ -315,6 +315,7 @@ comment.
 ## Options
 
 <!-- markdownlint-disable MD013 -->
+<!-- write-good-disable -->
 
 | Flag               | Short | Default         | Description                                           |
 | ------------------ | ----- | --------------- | ----------------------------------------------------- |
@@ -339,6 +340,7 @@ comment.
 | `--log-level`      |       | `INFO`          | Set logging level                                     |
 | `--version`        |       |                 | Show version and exit                                 |
 
+<!-- write-good-enable -->
 <!-- markdownlint-enable MD013 -->
 
 ## How It Works
@@ -481,15 +483,13 @@ pull-request-fixer https://github.com/lfreleng-actions/make-action/pull/40 \
 
 Output:
 
-<!-- write-good-disable -->
 ```text
 🔍 Processing PR: https://github.com/lfreleng-actions/make-action/pull/40
 🔧 Will fix: files
-🏃 Dry run mode: changes will not be applied
+🏃 Dry run mode: the tool will not apply changes
 
 📝 Fixing files in PR...
 ```
-<!-- write-good-enable -->
 
 ✅ Would fix 1 file
 📂 action.yaml

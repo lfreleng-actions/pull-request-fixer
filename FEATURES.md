@@ -15,7 +15,7 @@ in the pull-request-fixer tool.
 Efficiently scan entire GitHub organizations for pull requests:
 
 - **GraphQL-Based Scanning**: Uses GitHub's GraphQL API for efficient bulk queries
-- **Parallel Repository Processing**: Scans multiple repositories concurrently
+- **Parallel Repository Processing**: Scans repositories concurrently
 - **Progress Tracking**: Real-time progress updates during scanning
 - **Smart Pagination**: Handles large organizations with automatic pagination
 - **Repository Filtering**: Skips archived repositories automatically
@@ -25,10 +25,10 @@ Efficiently scan entire GitHub organizations for pull requests:
 Automatically fix PR titles to match commit messages:
 
 - **First Commit Detection**: Extracts the subject line from the first commit
-- **Title Normalization**: Sets PR title to match commit subject exactly
+- **Title Normalization**: Sets PR title to match the commit subject
 - **Preview Mode**: Dry-run support to preview changes before applying
-- **Batch Processing**: Fix multiple PRs in parallel
-- **Idempotent**: Safe to run multiple times (no-op if already correct)
+- **Batch Processing**: Fix PRs in parallel
+- **Idempotent**: safe to re-run (no-op if already correct)
 
 ### 3. PR Body Fixing
 
@@ -37,7 +37,7 @@ Update PR descriptions from commit message bodies:
 - **Body Extraction**: Gets commit message body (everything after subject)
 - **Trailer Removal**: Automatically strips Git trailers (Signed-off-by, etc.)
 - **Clean Formatting**: Preserves commit message formatting
-- **Optional Feature**: Can be enabled independently of title fixing
+- **Optional Feature**: Works independently of title fixing
 
 Removed trailers include:
 
@@ -59,7 +59,7 @@ Removed trailers include:
 
 Fix files in pull requests using regex-based search and replace:
 
-- **Clone and Modify**: Clones PR branch, applies fixes, amends commit, force-pushes
+- **Clone and Change**: Clones PR branch, applies fixes, amends commit, force-pushes
 - **Regex Pattern Matching**: Find files using regex patterns
 - **Content Search/Replace**: Apply regex-based transformations to file content
 - **Line Removal**: Remove lines matching patterns, optionally within context markers
@@ -104,7 +104,7 @@ pull-request-fixer PR_URL \
 
 ### 5. Blocked PR Filtering
 
-Only process PRs that cannot be merged:
+Process PRs that fail to merge:
 
 - **Status Check Detection**: Identifies failing CI/CD checks
 - **Merge Conflict Detection**: Finds PRs with merge conflicts
@@ -140,15 +140,15 @@ Efficient concurrent processing for performance:
 
 - **Worker Pool**: Configurable number of parallel workers (1-32)
 - **Semaphore-Based**: Proper concurrency control with asyncio semaphores
-- **Repository Level**: Process multiple repositories in parallel
-- **PR Level**: Process multiple PRs within a repository in parallel
+- **Repository Level**: Process repositories in parallel
+- **PR Level**: Process PRs within a repository in parallel
 - **Bounded Concurrency**: Respects GitHub API rate limits
 
 Performance characteristics:
 
 - Default: 4 workers
 - Recommended for large orgs: 8-16 workers
-- Maximum: 32 workers
+- Limit: 32 workers
 - Typical speed: 2-5 seconds per repository
 
 ### 8. Dry Run Mode
@@ -162,19 +162,19 @@ Preview changes without applying them:
 
 Output shows:
 
-- What would be changed
+- What would change
 - Previous and new values
-- Files that would be modified
-- Number of PRs that would be affected
+- Files that would change
+- Number of PRs that would change
 
 ### 9. PR Comments
 
 Automatic documentation of changes:
 
-- **Transparency**: Adds comment explaining what was changed
+- **Transparency**: Adds comment explaining what changed
 - **Attribution**: Links to pull-request-fixer project
 - **Change Details**: Lists specific modifications made
-- **Conditional**: Only added when changes are actually applied (not in dry-run)
+- **Conditional**: Added when changes are actually applied (not in dry-run)
 
 Example comment:
 
@@ -183,7 +183,7 @@ Example comment:
 
 Fixed 1 file(s): action.yaml
 
-The commit has been amended with the fixes.
+The commit now includes the fixes.
 
 ---
 *Automatically fixed by [pull-request-fixer](https://github.com/lfit/pull-request-fixer)*
@@ -295,10 +295,10 @@ For file fixing operations:
 
 ### Filtering Options
 
-| Option             | Description       |
-| ------------------ | ----------------- |
-| `--include-drafts` | Include draft PRs |
-| `--blocked-only`   | Only blocked PRs  |
+| Option             | Description          |
+| ------------------ | -------------------- |
+| `--include-drafts` | Include draft PRs    |
+| `--blocked-only`   | Limit to blocked PRs |
 
 ## Performance
 
@@ -314,8 +314,8 @@ Typical performance on a 100-repository organization:
 ### Optimization Strategies
 
 1. **Parallel Processing**: Use more workers for large organizations
-2. **Blocked-Only Filter**: Skip PRs that don't need fixing
-3. **Selective Fixing**: Only enable needed fix types
+2. **Blocked PR Filter**: Skip PRs that don't need fixing
+3. **Selective Fixing**: Enable needed fix types
 4. **GraphQL Batching**: Efficient queries reduce API calls
 5. **Async Operations**: Non-blocking I/O throughout
 

@@ -742,7 +742,7 @@ async def process_single_pr(
 
             # Process the PR
             semaphore = asyncio.Semaphore(1)  # Single PR, no parallelism needed
-            result = await process_pr(  # type: ignore[assignment]
+            result = await process_pr(  # type: ignore[assignment]  # pyright: ignore[reportAssignmentType]
                 client=client,
                 owner=owner,
                 repo_name=repo_name,

@@ -4,9 +4,9 @@
 """Test script to verify PR blocking logic matches between pull-request-fixer and dependamerge."""
 
 import asyncio
-from pathlib import Path
 import sys
-from typing import TYPE_CHECKING
+from pathlib import Path
+
 
 # Add both projects to path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
@@ -205,13 +205,14 @@ async def test_pr_blocking_logic() -> bool:
         GitHubService,  # type: ignore[import-untyped]
     )
 
+    from pull_request_fixer.github_client import GitHubClient
     from pull_request_fixer.pr_scanner import PRScanner
 
-    if TYPE_CHECKING:
-        from pull_request_fixer.github_client import GitHubClient
+    class StubGitHubClient:
+        """Minimal stub for testing PRScanner without real GitHub access."""
 
     # Create instances (without real GitHub client for testing)
-    pr_fixer_scanner = PRScanner(cast("GitHubClient", None))  # type: ignore[arg-type]
+    pr_fixer_scanner = PRScanner(cast(GitHubClient, StubGitHubClient()))
     dependamerge_service = GitHubService(token="fake-token-for-testing")
 
     print("Testing PR blocking logic consistency\n")

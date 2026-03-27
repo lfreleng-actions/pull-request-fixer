@@ -133,6 +133,7 @@ class PRFileFixer:
         try:
             # Get PR details
             error_message = None
+            pr_data: dict[str, Any] | list[dict[str, Any]] | None = None
             try:
                 pr_data = await self.client._request(
                     "GET", f"/repos/{owner}/{repo}/pulls/{pr_number}"
@@ -803,13 +804,13 @@ class PRFileFixer:
                     for file_info in files_to_update:
                         try:
                             # Re-fetch file to get current SHA for individual update
-                            file_data = await self.client._request(
+                            refetched_file_data = await self.client._request(
                                 "GET",
                                 f"/repos/{owner}/{repo}/contents/{file_info['path']}",
                                 params={"ref": branch},
                             )
-                            if isinstance(file_data, dict):
-                                current_sha = file_data.get("sha", "")
+                            if isinstance(refetched_file_data, dict):
+                                current_sha = refetched_file_data.get("sha", "")
                             else:
                                 self.logger.warning(
                                     f"Could not get SHA for {file_info['path']}, skipping"
