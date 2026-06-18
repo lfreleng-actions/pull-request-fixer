@@ -95,13 +95,15 @@ def parse_target(target: str) -> tuple[str, str]:
     # Check if it's a GitHub URL by parsing it and validating the host.
     # A substring check such as ``"github.com" in target`` is unsafe because
     # a host like ``github.com.evil.example`` would also match, so parse the
-    # URL and compare the hostname exactly. URLs without a scheme (e.g.
-    # ``github.com/org``) are treated as network-path references for parsing.
+    # URL and compare the hostname against an explicit allowlist of the
+    # GitHub web hosts. URLs without a scheme (e.g. ``github.com/org``) are
+    # treated as network-path references for parsing.
     parse_input = target if "://" in target else f"//{target}"
-    hostname = (urlparse(parse_input).hostname or "").lower()
-    if hostname == "github.com" or hostname.endswith(".github.com"):
+    parsed = urlparse(parse_input)
+    hostname = (parsed.hostname or "").lower()
+    if hostname in ("github.com", "www.github.com"):
         # Extract org from the URL path: /ORG or /ORG/...
-        org = urlparse(parse_input).path.lstrip("/").split("/")[0]
+        org = parsed.path.lstrip("/").split("/")[0]
         if org:
             return ("org", org)
 
