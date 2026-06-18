@@ -1718,8 +1718,7 @@ async def create_pr_comment(
             [
                 "",
                 "---",
-                "*This fix was automatically applied by "
-                "[pull-request-fixer](https://github.com/lfreleng-actions/pull-request-fixer)*",
+                "*This fix was automatically applied by [pull-request-fixer](https://github.com/lfreleng-actions/pull-request-fixer)*",
             ]
         )
 
@@ -1831,8 +1830,7 @@ async def create_file_fix_comment(
         lines.extend(
             [
                 "---",
-                "*This fix was automatically applied by "
-                "[pull-request-fixer](https://github.com/lfreleng-actions/pull-request-fixer)*",
+                "*This fix was automatically applied by [pull-request-fixer](https://github.com/lfreleng-actions/pull-request-fixer)*",
             ]
         )
 

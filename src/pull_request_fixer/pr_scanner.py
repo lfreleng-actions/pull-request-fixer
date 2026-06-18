@@ -284,8 +284,10 @@ class PRScanner:
                     break
                 yield item
         finally:
-            # Ensure producer completes
-            await producer_task
+            # Ensure the producer task completes and surface any exception it
+            # raised. ``gather`` is used (instead of a bare ``await`` on the
+            # task) so this remains an effective call statement.
+            await asyncio.gather(producer_task)
 
     async def _iter_org_repositories_with_open_prs(
         self, organization: str
