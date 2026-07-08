@@ -19,7 +19,7 @@ concurrency:
 
 permissions:
   contents: read
-  pull-requests: read
+  pull-requests: read  # Scan open pull requests via the GitHub API
 
 jobs:
   ### Build the Python package ###
@@ -44,6 +44,8 @@ jobs:
 
       # yamllint disable-line rule:line-length
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        with:
+          persist-credentials: false
 
       - name: 'Build Python project'
         id: python-build
@@ -59,7 +61,7 @@ jobs:
     needs: python-build
     permissions:
       contents: read
-      pull-requests: read
+      pull-requests: read  # Scan open pull requests via the GitHub API
     timeout-minutes: 10
     steps:
       # Harden the runner used by this workflow
@@ -70,6 +72,8 @@ jobs:
 
       - name: "Checkout repository"
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
 
       - name: "Install uv"
         # yamllint disable-line rule:line-length
@@ -105,7 +109,7 @@ jobs:
     needs: python-build
     permissions:
       contents: read
-      pull-requests: read
+      pull-requests: read  # Scan open pull requests via the GitHub API
     timeout-minutes: 15
     steps:
       # Harden the runner used by this workflow
@@ -116,6 +120,8 @@ jobs:
 
       - name: "Checkout repository"
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
 
       - name: "Install uv"
         # yamllint disable-line rule:line-length
@@ -133,12 +139,13 @@ jobs:
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO_OWNER: ${{ github.repository_owner }}
         run: |
           # Run debug script to validate GraphQL queries
           echo "## GraphQL Query Validation" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           uv run python scripts/debug_graphql.py \
-            --org "${{ github.repository_owner }}" 2>&1 | tee debug.log
+            --org "$REPO_OWNER" 2>&1 | tee debug.log
 
           # Add results to summary
           if grep -q "✅ Query successful" debug.log; then
@@ -152,15 +159,17 @@ jobs:
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO_OWNER: ${{ github.repository_owner }}
         run: |
           # Test scanning the organization in dry-run mode
-          echo "## Organization Scan Test" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Testing scan of organization: ${{ github.repository_owner }}" \
-            >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "## Organization Scan Test"
+            echo ""
+            echo "Testing scan of organization: $REPO_OWNER"
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
 
-          pull-request-fixer "${{ github.repository_owner }}" \
+          pull-request-fixer "$REPO_OWNER" \
             --fix-title \
             --dry-run \
             --verbose \
