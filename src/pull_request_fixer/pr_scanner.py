@@ -169,7 +169,6 @@ class PRScanner:
         Yields:
             Tuples of (owner, repo_name, pr_data)
         """
-        # Create a queue for PR results
         pr_queue: asyncio.Queue[tuple[str, str, dict[str, Any]] | None] = (
             asyncio.Queue()
         )
@@ -188,13 +187,11 @@ class PRScanner:
                     pr_count = 0
                     blocked_count = 0
 
-                    # Fetch first page of PRs
                     (
                         first_nodes,
                         page_info,
                     ) = await self._fetch_repo_prs_first_page(owner, repo_name)
 
-                    # Process first page PRs
                     for pr_node in first_nodes:
                         if self._should_include_pr(pr_node, include_drafts):
                             pr_count += 1
@@ -273,7 +270,6 @@ class PRScanner:
                 # Signal completion by putting None in queue
                 await pr_queue.put(None)
 
-        # Start producer task
         producer_task = asyncio.create_task(producer())
 
         try:
@@ -519,7 +515,6 @@ class PRScanner:
         if merge_state == "blocked":
             blocking_reasons.append("Blocked by branch protection rules")
 
-        # Check for failing status checks
         failing_checks = self._extract_failing_checks(pr)
         if failing_checks:
             blocking_reasons.append(

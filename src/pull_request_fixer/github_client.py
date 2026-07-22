@@ -181,7 +181,6 @@ class GitHubClient:
                     json_response if isinstance(json_response, dict) else {}
                 )
 
-                # Check for GraphQL errors
                 if "errors" in result:
                     errors = result["errors"]
                     msg = f"GraphQL errors: {errors}"
@@ -499,7 +498,6 @@ class GitHubClient:
         Raises:
             FileAccessError: If batch update fails
         """
-        # Get current branch reference
         ref_data = await self.get_reference(owner, repo, f"heads/{branch}")
         current_commit_sha = ref_data["object"]["sha"]
 
@@ -534,17 +532,14 @@ class GitHubClient:
             *[create_blob_for_file(file_info) for file_info in files]
         )
 
-        # Create tree with all changes
         tree_sha = await self.create_tree(
             owner, repo, base_tree_sha, tree_items
         )
 
-        # Create commit
         commit_sha = await self.create_commit(
             owner, repo, commit_message, tree_sha, [current_commit_sha]
         )
 
-        # Update branch reference
         await self.update_reference(owner, repo, f"heads/{branch}", commit_sha)
 
         return commit_sha
