@@ -229,7 +229,6 @@ def get_signing_info(repo_dir: Path) -> dict[str, str | bool]:
         info["signing_enabled"] = result.stdout.strip() == "true"
 
         if info["signing_enabled"]:
-            # Get format
             result = subprocess.run(
                 ["git", "config", "gpg.format"],
                 cwd=repo_dir,
@@ -240,7 +239,6 @@ def get_signing_info(repo_dir: Path) -> dict[str, str | bool]:
             gpg_format = result.stdout.strip()
             info["format"] = gpg_format if gpg_format else "openpgp"
 
-            # Get signing key
             result = subprocess.run(
                 ["git", "config", "user.signingkey"],
                 cwd=repo_dir,

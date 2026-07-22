@@ -90,6 +90,49 @@ class FileModification:
 
 
 @dataclass
+class FileFixSpec:
+    """Parameters describing how to fix files within a pull request.
+
+    Groups the file-matching and replacement options that are threaded
+    together through the file-fixing pipeline.
+    """
+
+    file_pattern: str
+    search_pattern: str
+    replacement: str
+    remove_lines: bool = False
+    context_start: str | None = None
+    context_end: str | None = None
+    dry_run: bool = False
+    pr_content_only: bool = False
+
+
+@dataclass
+class FixOptions:
+    """Shared options controlling how PR titles, bodies, and files are fixed.
+
+    Groups the common configuration threaded from the CLI into the
+    single-PR and organization-scan processing flows.
+    """
+
+    fix_title: bool
+    fix_body: bool
+    fix_files: bool
+    file_pattern: str | None
+    search_pattern: str | None
+    replacement: str
+    remove_lines: bool
+    context_start: str | None
+    context_end: str | None
+    pr_content_only: bool
+    dry_run: bool
+    show_diff: bool
+    quiet: bool
+    git_config_mode: str
+    update_method: str
+
+
+@dataclass
 class GitHubFixResult:
     """Result of fixing a PR."""
 

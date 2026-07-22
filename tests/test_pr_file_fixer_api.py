@@ -22,7 +22,7 @@ from unittest.mock import AsyncMock, MagicMock, Mock
 import pytest
 
 from pull_request_fixer.github_client import GitHubClient
-from pull_request_fixer.models import PRInfo
+from pull_request_fixer.models import FileFixSpec, PRInfo
 from pull_request_fixer.pr_file_fixer import PRFileFixer
 
 
@@ -96,11 +96,13 @@ class TestFixPRWithAPI:
             owner="owner",
             repo="repo",
             pr_data=pr_data,
-            file_pattern=r"\.yaml$",
-            search_pattern=r"old_value",
-            replacement="new_value",
-            dry_run=False,
-            pr_content_only=True,
+            spec=FileFixSpec(
+                file_pattern=r"\.yaml$",
+                search_pattern=r"old_value",
+                replacement="new_value",
+                dry_run=False,
+                pr_content_only=True,
+            ),
         )
 
         # Verify
@@ -151,14 +153,16 @@ runs:
             owner="owner",
             repo="repo",
             pr_data=pr_data,
-            file_pattern=r"action\.yaml$",
-            search_pattern=r"type:",
-            replacement="",
-            remove_lines=True,
-            context_start=r"inputs:",
-            context_end=r"runs:",
-            dry_run=False,
-            pr_content_only=True,
+            spec=FileFixSpec(
+                file_pattern=r"action\.yaml$",
+                search_pattern=r"type:",
+                replacement="",
+                remove_lines=True,
+                context_start=r"inputs:",
+                context_end=r"runs:",
+                dry_run=False,
+                pr_content_only=True,
+            ),
         )
 
         # Verify
@@ -201,11 +205,13 @@ runs:
             owner="owner",
             repo="repo",
             pr_data=pr_data,
-            file_pattern=r"\.yaml$",
-            search_pattern=r"old_value",
-            replacement="new_value",
-            dry_run=False,
-            pr_content_only=True,
+            spec=FileFixSpec(
+                file_pattern=r"\.yaml$",
+                search_pattern=r"old_value",
+                replacement="new_value",
+                dry_run=False,
+                pr_content_only=True,
+            ),
         )
 
         # Verify
@@ -237,11 +243,13 @@ runs:
             owner="owner",
             repo="repo",
             pr_data=pr_data,
-            file_pattern=r"\.yaml$",
-            search_pattern=r"old_value",
-            replacement="new_value",
-            dry_run=True,
-            pr_content_only=True,
+            spec=FileFixSpec(
+                file_pattern=r"\.yaml$",
+                search_pattern=r"old_value",
+                replacement="new_value",
+                dry_run=True,
+                pr_content_only=True,
+            ),
         )
 
         # Verify
@@ -274,11 +282,13 @@ runs:
             owner="owner",
             repo="repo",
             pr_data=pr_data,
-            file_pattern=r"\.yaml$",
-            search_pattern=r"old_value",
-            replacement="new_value",
-            dry_run=False,
-            pr_content_only=True,
+            spec=FileFixSpec(
+                file_pattern=r"\.yaml$",
+                search_pattern=r"old_value",
+                replacement="new_value",
+                dry_run=False,
+                pr_content_only=True,
+            ),
         )
 
         # Verify
@@ -311,11 +321,13 @@ runs:
             owner="owner",
             repo="repo",
             pr_data=pr_data,
-            file_pattern=r"^\./action\.yaml$",
-            search_pattern=r"old_value",
-            replacement="new_value",
-            dry_run=False,
-            pr_content_only=True,
+            spec=FileFixSpec(
+                file_pattern=r"^\./action\.yaml$",
+                search_pattern=r"old_value",
+                replacement="new_value",
+                dry_run=False,
+                pr_content_only=True,
+            ),
         )
 
         # Verify
@@ -356,11 +368,13 @@ runs:
             owner="owner",
             repo="repo",
             pr_data=pr_data,
-            file_pattern=r"\.yaml$",
-            search_pattern=r"nonexistent",
-            replacement="new_value",
-            dry_run=False,
-            pr_content_only=True,
+            spec=FileFixSpec(
+                file_pattern=r"\.yaml$",
+                search_pattern=r"nonexistent",
+                replacement="new_value",
+                dry_run=False,
+                pr_content_only=True,
+            ),
         )
 
         # Verify
@@ -393,11 +407,13 @@ runs:
             owner="owner",
             repo="repo",
             pr_data=pr_data,
-            file_pattern=r"\.yaml$",
-            search_pattern=r"old_value",
-            replacement="new_value",
-            dry_run=False,
-            pr_content_only=True,
+            spec=FileFixSpec(
+                file_pattern=r"\.yaml$",
+                search_pattern=r"old_value",
+                replacement="new_value",
+                dry_run=False,
+                pr_content_only=True,
+            ),
         )
 
         # Verify - only other.yaml should be processed
@@ -406,14 +422,20 @@ runs:
         assert result.files_modified[0] == Path("other.yaml")
 
     @pytest.mark.asyncio
-    async def test_skips_files_without_filename_or_sha(
+    async def test_skips_files_without_filename(
         self,
         pr_fixer: PRFileFixer,
         mock_client: Mock,
         pr_info: PRInfo,
         pr_data: dict[str, Any],
     ) -> None:
-        """Test that files without filename or sha are skipped."""
+        """Test that files without a filename are skipped.
+
+        The API sha in the file entry is not consumed by the fix flow
+        (content is fetched by path+branch and the sha is refetched
+        before pushing), so a missing sha must not skip a file. Only a
+        missing filename is disqualifying.
+        """
         # Setup
         mock_client.get_pr_files.return_value = [
             {"sha": "file123", "status": "modified"},  # Missing filename
@@ -430,17 +452,21 @@ runs:
             owner="owner",
             repo="repo",
             pr_data=pr_data,
-            file_pattern=r"\.yaml$",
-            search_pattern=r"old_value",
-            replacement="new_value",
-            dry_run=False,
-            pr_content_only=True,
+            spec=FileFixSpec(
+                file_pattern=r"\.yaml$",
+                search_pattern=r"old_value",
+                replacement="new_value",
+                dry_run=False,
+                pr_content_only=True,
+            ),
         )
 
-        # Verify - only test3.yaml should be processed
+        # Verify - the entry missing a filename is skipped; both files
+        # with a filename are processed regardless of the sha field.
         assert result.success is True
-        assert len(result.files_modified) == 1
-        assert result.files_modified[0] == Path("test3.yaml")
+        assert len(result.files_modified) == 2
+        assert Path("test2.yaml") in result.files_modified
+        assert Path("test3.yaml") in result.files_modified
 
     @pytest.mark.asyncio
     async def test_file_processing_error_continues(
@@ -475,11 +501,13 @@ runs:
             owner="owner",
             repo="repo",
             pr_data=pr_data,
-            file_pattern=r"\.yaml$",
-            search_pattern=r"old_value",
-            replacement="new_value",
-            dry_run=False,
-            pr_content_only=True,
+            spec=FileFixSpec(
+                file_pattern=r"\.yaml$",
+                search_pattern=r"old_value",
+                replacement="new_value",
+                dry_run=False,
+                pr_content_only=True,
+            ),
         )
 
         # Verify - file2.yaml should still be processed
@@ -505,11 +533,13 @@ runs:
             owner="owner",
             repo="repo",
             pr_data=pr_data,
-            file_pattern=r"\.yaml$",
-            search_pattern=r"old_value",
-            replacement="new_value",
-            dry_run=False,
-            pr_content_only=True,
+            spec=FileFixSpec(
+                file_pattern=r"\.yaml$",
+                search_pattern=r"old_value",
+                replacement="new_value",
+                dry_run=False,
+                pr_content_only=True,
+            ),
         )
 
         # Verify
@@ -538,11 +568,13 @@ runs:
             owner="owner",
             repo="repo",
             pr_data=pr_data,
-            file_pattern=r"\.yaml$",
-            search_pattern=r"old_value",
-            replacement="new_value",
-            dry_run=False,
-            pr_content_only=True,
+            spec=FileFixSpec(
+                file_pattern=r"\.yaml$",
+                search_pattern=r"old_value",
+                replacement="new_value",
+                dry_run=False,
+                pr_content_only=True,
+            ),
         )
 
         # Verify token is redacted
@@ -573,11 +605,13 @@ runs:
             owner="owner",
             repo="repo",
             pr_data=pr_data,
-            file_pattern=r"\.yaml$",
-            search_pattern=r"old_value",
-            replacement="new_value",
-            dry_run=False,
-            pr_content_only=True,
+            spec=FileFixSpec(
+                file_pattern=r"\.yaml$",
+                search_pattern=r"old_value",
+                replacement="new_value",
+                dry_run=False,
+                pr_content_only=True,
+            ),
         )
 
         # Verify
@@ -624,11 +658,13 @@ runs:
             owner="owner",
             repo="repo",
             pr_data=pr_data,
-            file_pattern=r"\.yaml$",
-            search_pattern=r"old_value",
-            replacement="new_value",
-            dry_run=False,
-            pr_content_only=True,
+            spec=FileFixSpec(
+                file_pattern=r"\.yaml$",
+                search_pattern=r"old_value",
+                replacement="new_value",
+                dry_run=False,
+                pr_content_only=True,
+            ),
         )
 
         # Verify - fallback should skip the file when refetch returns unexpected data
@@ -661,11 +697,13 @@ runs:
             owner="owner",
             repo="repo",
             pr_data=pr_data,
-            file_pattern=r"\.yaml$",
-            search_pattern=r"old_value",
-            replacement="new_value",
-            dry_run=False,
-            pr_content_only=True,
+            spec=FileFixSpec(
+                file_pattern=r"\.yaml$",
+                search_pattern=r"old_value",
+                replacement="new_value",
+                dry_run=False,
+                pr_content_only=True,
+            ),
         )
 
         # Verify
@@ -705,11 +743,13 @@ runs:
             owner="owner",
             repo="repo",
             pr_data=pr_data,
-            file_pattern=r"\.yaml$",
-            search_pattern=r"old_value",
-            replacement="new_value",
-            dry_run=False,
-            pr_content_only=True,
+            spec=FileFixSpec(
+                file_pattern=r"\.yaml$",
+                search_pattern=r"old_value",
+                replacement="new_value",
+                dry_run=False,
+                pr_content_only=True,
+            ),
         )
 
         # Verify - operation should still succeed
@@ -742,11 +782,13 @@ runs:
             owner="owner",
             repo="repo",
             pr_data=pr_data,
-            file_pattern=r"\.yaml$",
-            search_pattern=r"old_value",
-            replacement="new_value",
-            dry_run=False,
-            pr_content_only=True,
+            spec=FileFixSpec(
+                file_pattern=r"\.yaml$",
+                search_pattern=r"old_value",
+                replacement="new_value",
+                dry_run=False,
+                pr_content_only=True,
+            ),
         )
 
         # Verify
@@ -786,11 +828,13 @@ runs:
             owner="owner",
             repo="repo",
             pr_data=pr_data,
-            file_pattern=r"\.yaml$",
-            search_pattern=r"old_value",
-            replacement="new_value",
-            dry_run=False,
-            pr_content_only=True,
+            spec=FileFixSpec(
+                file_pattern=r"\.yaml$",
+                search_pattern=r"old_value",
+                replacement="new_value",
+                dry_run=False,
+                pr_content_only=True,
+            ),
         )
 
         # Verify
@@ -827,11 +871,13 @@ runs:
             owner="owner",
             repo="repo",
             pr_data=pr_data,
-            file_pattern=r"\.yaml$",
-            search_pattern=r"old_value",
-            replacement="new_value",
-            dry_run=False,
-            pr_content_only=True,
+            spec=FileFixSpec(
+                file_pattern=r"\.yaml$",
+                search_pattern=r"old_value",
+                replacement="new_value",
+                dry_run=False,
+                pr_content_only=True,
+            ),
         )
 
         # Verify singular
@@ -850,11 +896,13 @@ runs:
             owner="owner",
             repo="repo",
             pr_data=pr_data,
-            file_pattern=r"\.yaml$",
-            search_pattern=r"old_value",
-            replacement="new_value",
-            dry_run=False,
-            pr_content_only=True,
+            spec=FileFixSpec(
+                file_pattern=r"\.yaml$",
+                search_pattern=r"old_value",
+                replacement="new_value",
+                dry_run=False,
+                pr_content_only=True,
+            ),
         )
 
         # Verify plural

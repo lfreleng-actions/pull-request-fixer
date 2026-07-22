@@ -19,12 +19,13 @@ import tempfile
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from .file_fixer import FileFixer
     from .github_client import GitHubClient
-    from .models import PRInfo
+    from .models import FileModification, PRInfo
 
 from .exceptions import ResourceNotFoundError
 from .git_config import GitConfigMode, configure_git_identity
-from .models import GitHubFixResult
+from .models import FileFixSpec, GitHubFixResult
 
 
 class PRFileFixer:
@@ -102,7 +103,6 @@ class PRFileFixer:
         """
         from .models import GitHubFixResult, PRInfo
 
-        # Parse PR URL
         match = re.match(
             r"https?://github\.com/([^/]+)/([^/]+)/pull/(\d+)", pr_url
         )
@@ -131,7 +131,6 @@ class PRFileFixer:
         self.logger.debug(f"Processing PR: {owner}/{repo}#{pr_number}")
 
         try:
-            # Get PR details
             error_message = None
             pr_data: dict[str, Any] | list[dict[str, Any]] | None = None
             try:
@@ -207,6 +206,16 @@ class PRFileFixer:
                 )
 
             # Route to appropriate update method
+            spec = FileFixSpec(
+                file_pattern=file_pattern,
+                search_pattern=search_pattern,
+                replacement=replacement,
+                remove_lines=remove_lines,
+                context_start=context_start,
+                context_end=context_end,
+                dry_run=dry_run,
+                pr_content_only=pr_content_only,
+            )
             if update_method == "api":
                 # Use GitHub API to update files
                 return await self._fix_pr_with_api(
@@ -214,14 +223,7 @@ class PRFileFixer:
                     owner,
                     repo,
                     pr_data,
-                    file_pattern,
-                    search_pattern,
-                    replacement,
-                    remove_lines=remove_lines,
-                    context_start=context_start,
-                    context_end=context_end,
-                    dry_run=dry_run,
-                    pr_content_only=pr_content_only,
+                    spec,
                 )
             else:
                 # Clone and fix using Git operations
@@ -230,14 +232,7 @@ class PRFileFixer:
                     clone_url,
                     owner,
                     repo,
-                    file_pattern,
-                    search_pattern,
-                    replacement,
-                    remove_lines=remove_lines,
-                    context_start=context_start,
-                    context_end=context_end,
-                    dry_run=dry_run,
-                    pr_content_only=pr_content_only,
+                    spec,
                 )
 
         except Exception as e:
@@ -267,16 +262,9 @@ class PRFileFixer:
         clone_url: str,
         owner: str,
         repo: str,
-        file_pattern: str,
-        search_pattern: str,
-        replacement: str,
+        spec: FileFixSpec,
         *,
-        remove_lines: bool = False,
-        context_start: str | None = None,
-        context_end: str | None = None,
-        dry_run: bool = False,
         git_config_mode: str | None = None,
-        pr_content_only: bool = False,
     ) -> GitHubFixResult:
         """Fix PR using Git operations (clone, fix, amend, push).
 
@@ -285,19 +273,21 @@ class PRFileFixer:
             clone_url: Repository clone URL
             owner: Repository owner
             repo: Repository name
-            file_pattern: Regex pattern to match file paths
-            search_pattern: Regex pattern to search for
-            replacement: Replacement string
-            remove_lines: If True, remove matching lines entirely
-            context_start: Optional context start for line removal
-            context_end: Optional context end for line removal
-            dry_run: If True, don't push changes
+            spec: File-matching and replacement options
             git_config_mode: Override git config mode for this operation
-            pr_content_only: If True, only fix files already modified in the PR
 
         Returns:
             GitHubFixResult with operation details
         """
+        file_pattern = spec.file_pattern
+        search_pattern = spec.search_pattern
+        replacement = spec.replacement
+        remove_lines = spec.remove_lines
+        context_start = spec.context_start
+        context_end = spec.context_end
+        dry_run = spec.dry_run
+        pr_content_only = spec.pr_content_only
+
         # Use provided mode or fall back to instance default
         config_mode = git_config_mode or self.git_config_mode
         from .file_fixer import FileFixer
@@ -336,7 +326,6 @@ class PRFileFixer:
 
                 # Filter to PR files only if pr_content_only is True
                 if pr_content_only:
-                    # Get the list of files changed in this PR
                     pr_files = await self.client.get_pr_files(
                         owner, repo, pr_info.number
                     )
@@ -422,7 +411,6 @@ class PRFileFixer:
                         file_modifications=file_modifications,
                     )
 
-                # Configure git identity and signing
                 git_config = configure_git_identity(
                     repo_dir,
                     mode=config_mode,
@@ -494,7 +482,6 @@ class PRFileFixer:
                     error_msg = "Push rejected: PR branch was updated while processing. Please retry."
                     raise RuntimeError(error_msg) from e
 
-                # Create a comment on the PR
                 file_names = [
                     str(f.relative_to(repo_dir)) for f in files_modified
                 ]
@@ -567,15 +554,7 @@ class PRFileFixer:
         owner: str,
         repo: str,
         pr_data: dict[str, Any],
-        file_pattern: str,
-        search_pattern: str,
-        replacement: str,
-        *,
-        remove_lines: bool = False,
-        context_start: str | None = None,
-        context_end: str | None = None,
-        dry_run: bool = False,
-        pr_content_only: bool = False,
+        spec: FileFixSpec,
     ) -> GitHubFixResult:
         """
         Fix PR using GitHub API (updates files).
@@ -591,97 +570,32 @@ class PRFileFixer:
             owner: Repository owner
             repo: Repository name
             pr_data: Full PR data from API
-            file_pattern: Regex pattern to match file paths
-            search_pattern: Regex pattern to search for
-            replacement: Replacement string
-            remove_lines: If True, remove matching lines entirely
-            context_start: Optional context start for line removal
-            context_end: Optional context end for line removal
-            dry_run: If True, don't actually push changes
-            pr_content_only: If True, only fix files already modified in the PR
+            spec: File-matching and replacement options
 
         Returns:
             GitHubFixResult with operation details
         """
-        from .file_fixer import FileFixer
-        from .models import FileModification
+        dry_run = spec.dry_run
 
         branch = pr_info.head_ref
         pr_number = pr_info.number
 
         try:
-            pattern = re.compile(file_pattern)
-
-            if pr_content_only:
-                # Get files from the PR only
-                files = await self.client.get_pr_files(owner, repo, pr_number)
-
-                # Debug: Log all files and their status
-                self.logger.debug(f"Total files from PR: {len(files)}")
-                for f in files:
-                    filename = f.get("filename", "")
-                    status = f.get("status")
-                    self.logger.debug(f"  File: {filename}, status: {status!r}")
-
-                matching_files = [
-                    f
-                    for f in files
-                    if (
-                        pattern.search(f.get("filename", ""))
-                        or pattern.search(f"./{f.get('filename', '')}")
-                    )
-                    and f.get("status") != "removed"
-                ]
-            else:
-                # Get all files from the repository that match the pattern
-                # We need to use the Git tree API to get all files
-
-                # Clone the PR branch to get all files
-                clone_url = (
-                    pr_data.get("head", {}).get("repo", {}).get("clone_url", "")
+            matching_files = await self._collect_matching_files(
+                owner, repo, pr_info, pr_data, spec
+            )
+            if matching_files is None:
+                # Mirror the message into ``error`` so call sites that
+                # surface ``result.error`` still show the failure detail.
+                access_error = "Cannot access repository to list all files"
+                return GitHubFixResult(
+                    pr_info=pr_info,
+                    success=False,
+                    message=access_error,
+                    error=access_error,
+                    files_modified=[],
+                    file_modifications=[],
                 )
-                if not clone_url:
-                    return GitHubFixResult(
-                        pr_info=pr_info,
-                        success=False,
-                        message="Cannot access repository to list all files",
-                        files_modified=[],
-                        file_modifications=[],
-                    )
-
-                with tempfile.TemporaryDirectory() as tmpdir:
-                    repo_dir = Path(tmpdir) / "repo"
-                    auth_url = clone_url.replace(
-                        "https://",
-                        f"https://x-access-token:{self.client.token}@",
-                    )
-                    subprocess.run(
-                        [
-                            "git",
-                            "clone",
-                            "--depth=1",
-                            "--branch",
-                            pr_info.head_ref,
-                            auth_url,
-                            str(repo_dir),
-                        ],
-                        check=True,
-                        capture_output=True,
-                        text=True,
-                    )
-
-                    fixer = FileFixer()
-                    file_paths = fixer.find_files(repo_dir, file_pattern)
-
-                    # Convert to format expected by rest of function
-                    matching_files = [
-                        {
-                            "filename": str(f.relative_to(repo_dir)),
-                            "sha": None,  # We'll fetch this later
-                            "status": "modified",
-                        }
-                        for f in file_paths
-                    ]
 
             self.logger.debug(
                 f"Found {len(matching_files)} files matching pattern"
@@ -696,148 +610,17 @@ class PRFileFixer:
                     file_modifications=[],
                 )
 
-            files_modified: list[Path] = []
-            file_modifications: list[FileModification] = []
-            fixer = FileFixer()
+            files_modified, file_modifications, files_to_update = (
+                await self._apply_fixes_to_files(
+                    matching_files, owner, repo, branch, spec
+                )
+            )
 
-            # First pass: Process all files and collect modifications
-            # This allows us to batch the API updates
-            files_to_update: list[dict[str, str]] = []
-
-            for file_data in matching_files:
-                filename = file_data.get("filename", "")
-                file_sha = file_data.get("sha")
-
-                self.logger.debug(f"Processing {filename}")
-
-                if not filename or not file_sha:
-                    continue
-
-                try:
-                    # Get current file content
-                    content = await self.client.get_file_content(
-                        owner, repo, filename, branch
-                    )
-
-                    with tempfile.NamedTemporaryFile(
-                        mode="w", suffix=".tmp", delete=False
-                    ) as tmp_file:
-                        tmp_file.write(content)
-                        tmp_path = Path(tmp_file.name)
-
-                    try:
-                        # Apply fixes
-                        if remove_lines:
-                            was_modified, original, modified = (
-                                fixer.remove_lines_matching(
-                                    tmp_path,
-                                    search_pattern,
-                                    context_start=context_start,
-                                    context_end=context_end,
-                                    dry_run=False,
-                                )
-                            )
-                        else:
-                            was_modified, original, modified = fixer.apply_fix(
-                                tmp_path,
-                                search_pattern,
-                                replacement,
-                                dry_run=False,
-                            )
-
-                        if was_modified and modified != content:
-                            files_modified.append(Path(filename))
-                            file_modifications.append(
-                                FileModification(
-                                    file_path=Path(filename),
-                                    original_content=original,
-                                    modified_content=modified,
-                                )
-                            )
-
-                            # Collect for batch update
-                            if not dry_run:
-                                files_to_update.append(
-                                    {
-                                        "path": filename,
-                                        "content": modified,
-                                    }
-                                )
-                    finally:
-                        # Clean up temp file
-                        tmp_path.unlink(missing_ok=True)
-
-                except Exception as e:
-                    self.logger.warning(f"Failed to process {filename}: {e}")
-                    continue
-
-            # Second pass: Batch update all modified files in a single commit
-            # This is much more efficient than updating files one by one:
-            # - Eliminates redundant SHA re-fetches
-            # - Creates a single commit instead of multiple commits
-            # - Reduces API calls from 3N to ~N (where N = number of files)
+            # Second pass: batch update all modified files in a single commit.
             if files_to_update and not dry_run:
-                try:
-                    file_list = ", ".join(f["path"] for f in files_to_update)
-                    commit_message = (
-                        f"Fix {len(files_to_update)} file(s) in PR #{pr_number}\n\n"
-                        f"Applied pattern-based fixes to:\n"
-                        f"{file_list}\n\n"
-                        f"Automated by pull-request-fixer"
-                    )
-
-                    await self.client.update_files_in_batch(
-                        owner,
-                        repo,
-                        branch,
-                        files_to_update,
-                        commit_message,
-                    )
-                    self.logger.debug(
-                        f"Successfully updated {len(files_to_update)} files in a single commit"
-                    )
-                except Exception as e:
-                    # Fall back to individual file updates if batch fails
-                    self.logger.warning(
-                        f"Batch update failed, falling back to individual updates: {e}"
-                    )
-                    for file_info in files_to_update:
-                        try:
-                            # Re-fetch file to get current SHA for individual update
-                            refetched_file_data = await self.client._request(
-                                "GET",
-                                f"/repos/{owner}/{repo}/contents/{file_info['path']}",
-                                params={"ref": branch},
-                            )
-                            if isinstance(refetched_file_data, dict):
-                                current_sha = refetched_file_data.get("sha", "")
-                            else:
-                                self.logger.warning(
-                                    f"Could not get SHA for {file_info['path']}, skipping"
-                                )
-                                continue
-
-                            commit_message = (
-                                f"Fix {file_info['path']}\n\n"
-                                f"Applied pattern-based fixes in PR #{pr_number}"
-                            )
-
-                            await self.client.update_file(
-                                owner,
-                                repo,
-                                file_info["path"],
-                                file_info["content"],
-                                commit_message,
-                                branch,
-                                current_sha,
-                            )
-                            self.logger.debug(
-                                f"Successfully updated {file_info['path']} (fallback)"
-                            )
-                        except Exception as file_error:
-                            self.logger.error(
-                                f"Failed to update {file_info['path']}: {file_error}"
-                            )
+                await self._batch_update_files(
+                    owner, repo, branch, files_to_update, pr_number
+                )
 
             if not files_modified:
                 return GitHubFixResult(
@@ -848,24 +631,10 @@ class PRFileFixer:
                     file_modifications=[],
                 )
 
-            # Create comment
             if not dry_run:
-                file_names = [str(f) for f in files_modified]
-                comment_body = (
-                    f"🛠️ **Pull Request Fixer**\n\n"
-                    f"Fixed {len(files_modified)} file(s): {', '.join(file_names)}\n\n"
-                    f"Changes applied via GitHub API.\n\n"
-                    f"---\n"
-                    f"*Automatically fixed by [pull-request-fixer]"
-                    f"(https://github.com/lfreleng-actions/pull-request-fixer)*"
+                await self._post_api_fix_comment(
+                    owner, repo, pr_number, files_modified
                 )
-
-                try:
-                    await self.client.create_comment(
-                        owner, repo, pr_number, comment_body
-                    )
-                except Exception as e:
-                    self.logger.debug(f"Failed to create PR comment: {e}")
 
             count = len(files_modified)
             message = (
@@ -894,3 +663,316 @@ class PRFileFixer:
                 error=sanitized_message,
                 file_modifications=[],
             )
+
+    async def _collect_matching_files(
+        self,
+        owner: str,
+        repo: str,
+        pr_info: PRInfo,
+        pr_data: dict[str, Any],
+        spec: FileFixSpec,
+    ) -> list[dict[str, Any]] | None:
+        """Return files matching the spec's pattern.
+
+        When ``pr_content_only`` is set, only files changed in the PR are
+        considered; otherwise the PR branch is cloned to enumerate all files.
+        Returns ``None`` when the repository cannot be accessed.
+        """
+        from .file_fixer import FileFixer
+
+        pattern = re.compile(spec.file_pattern)
+
+        if spec.pr_content_only:
+            # Get files from the PR only
+            files = await self.client.get_pr_files(owner, repo, pr_info.number)
+
+            self.logger.debug(f"Total files from PR: {len(files)}")
+            for f in files:
+                filename = f.get("filename", "")
+                status = f.get("status")
+                self.logger.debug(f"  File: {filename}, status: {status!r}")
+
+            return [
+                f
+                for f in files
+                if (
+                    pattern.search(f.get("filename", ""))
+                    or pattern.search(f"./{f.get('filename', '')}")
+                )
+                and f.get("status") != "removed"
+            ]
+
+        # Clone the PR branch to enumerate all files in the repository.
+        clone_url = (
+            pr_data.get("head", {}).get("repo", {}).get("clone_url", "")
+        )
+        if not clone_url:
+            return None
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            repo_dir = Path(tmpdir) / "repo"
+            auth_url = clone_url.replace(
+                "https://",
+                f"https://x-access-token:{self.client.token}@",
+            )
+            try:
+                subprocess.run(
+                    [
+                        "git",
+                        "clone",
+                        "--depth=1",
+                        "--branch",
+                        pr_info.head_ref,
+                        auth_url,
+                        str(repo_dir),
+                    ],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
+            except subprocess.CalledProcessError as exc:
+                # ``auth_url`` embeds an access token; CalledProcessError
+                # stringifies the full command, so re-raise a scrubbed
+                # error ``from None`` to keep the token out of the
+                # exception chain and any ``exc_info=True`` traceback
+                # logged by the caller.
+                raise RuntimeError(
+                    f"Failed to clone PR branch '{pr_info.head_ref}' "
+                    f"(git exited {exc.returncode})"
+                ) from None
+
+            fixer = FileFixer()
+            file_paths = fixer.find_files(repo_dir, spec.file_pattern)
+
+            # Convert to format expected by the rest of the flow. The API
+            # sha is not needed here: content is fetched by path+branch and
+            # the push flow refetches the sha per file before updating.
+            return [
+                {
+                    "filename": str(f.relative_to(repo_dir)),
+                    "sha": None,
+                    "status": "modified",
+                }
+                for f in file_paths
+            ]
+
+    async def _apply_fixes_to_files(
+        self,
+        matching_files: list[dict[str, Any]],
+        owner: str,
+        repo: str,
+        branch: str,
+        spec: FileFixSpec,
+    ) -> tuple[list[Path], list[FileModification], list[dict[str, str]]]:
+        """Apply fixes to each matching file and collect the results.
+
+        Returns the modified paths, their :class:`FileModification` records,
+        and the list of files to push (empty in dry-run mode).
+        """
+        from .file_fixer import FileFixer
+        from .models import FileModification
+
+        files_modified: list[Path] = []
+        file_modifications: list[FileModification] = []
+        files_to_update: list[dict[str, str]] = []
+        fixer = FileFixer()
+
+        for file_data in matching_files:
+            result = await self._apply_fix_to_file(
+                fixer, file_data, owner, repo, branch, spec
+            )
+            if result is None:
+                continue
+            original, modified = result
+            filename = file_data.get("filename", "")
+            files_modified.append(Path(filename))
+            file_modifications.append(
+                FileModification(
+                    file_path=Path(filename),
+                    original_content=original,
+                    modified_content=modified,
+                )
+            )
+            if not spec.dry_run:
+                files_to_update.append(
+                    {"path": filename, "content": modified}
+                )
+
+        return files_modified, file_modifications, files_to_update
+
+    async def _apply_fix_to_file(
+        self,
+        fixer: FileFixer,
+        file_data: dict[str, Any],
+        owner: str,
+        repo: str,
+        branch: str,
+        spec: FileFixSpec,
+    ) -> tuple[str, str] | None:
+        """Fetch a single file, apply fixes, and return (original, modified).
+
+        Returns ``None`` when the file is skipped, unchanged, or fails to
+        process (matching the original best-effort, skip-on-error behavior).
+        """
+        filename = file_data.get("filename", "")
+
+        self.logger.debug(f"Processing {filename}")
+
+        if not filename:
+            return None
+
+        try:
+            content = await self.client.get_file_content(
+                owner, repo, filename, branch
+            )
+
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".tmp", delete=False
+            ) as tmp_file:
+                tmp_file.write(content)
+                tmp_path = Path(tmp_file.name)
+
+            try:
+                if spec.remove_lines:
+                    was_modified, original, modified = (
+                        fixer.remove_lines_matching(
+                            tmp_path,
+                            spec.search_pattern,
+                            context_start=spec.context_start,
+                            context_end=spec.context_end,
+                            dry_run=False,
+                        )
+                    )
+                else:
+                    was_modified, original, modified = fixer.apply_fix(
+                        tmp_path,
+                        spec.search_pattern,
+                        spec.replacement,
+                        dry_run=False,
+                    )
+
+                if was_modified and modified != content:
+                    return original, modified
+                return None
+            finally:
+                tmp_path.unlink(missing_ok=True)
+
+        except Exception as e:
+            self.logger.warning(f"Failed to process {filename}: {e}")
+            return None
+
+    async def _batch_update_files(
+        self,
+        owner: str,
+        repo: str,
+        branch: str,
+        files_to_update: list[dict[str, str]],
+        pr_number: int,
+    ) -> None:
+        """Update all modified files in a single commit.
+
+        Batching is much more efficient than updating files one by one: it
+        eliminates redundant SHA re-fetches, creates a single commit instead
+        of many, and reduces API calls from ~3N to ~N. Falls back to
+        per-file updates if the batch commit fails.
+        """
+        try:
+            file_list = ", ".join(f["path"] for f in files_to_update)
+            commit_message = (
+                f"Fix {len(files_to_update)} file(s) in PR #{pr_number}\n\n"
+                f"Applied pattern-based fixes to:\n"
+                f"{file_list}\n\n"
+                f"Automated by pull-request-fixer"
+            )
+
+            await self.client.update_files_in_batch(
+                owner,
+                repo,
+                branch,
+                files_to_update,
+                commit_message,
+            )
+            self.logger.debug(
+                f"Successfully updated {len(files_to_update)} files in a single commit"
+            )
+        except Exception as e:
+            # Fall back to individual file updates if batch fails
+            self.logger.warning(
+                f"Batch update failed, falling back to individual updates: {e}"
+            )
+            await self._update_files_individually(
+                owner, repo, branch, files_to_update, pr_number
+            )
+
+    async def _update_files_individually(
+        self,
+        owner: str,
+        repo: str,
+        branch: str,
+        files_to_update: list[dict[str, str]],
+        pr_number: int,
+    ) -> None:
+        """Update each file with its own commit, re-fetching the current SHA."""
+        for file_info in files_to_update:
+            try:
+                # Re-fetch file to get current SHA for individual update
+                refetched_file_data = await self.client._request(
+                    "GET",
+                    f"/repos/{owner}/{repo}/contents/{file_info['path']}",
+                    params={"ref": branch},
+                )
+                current_sha = ""
+                if isinstance(refetched_file_data, dict):
+                    current_sha = refetched_file_data.get("sha", "") or ""
+                if not current_sha:
+                    self.logger.warning(
+                        f"Could not get SHA for {file_info['path']}, skipping"
+                    )
+                    continue
+
+                commit_message = (
+                    f"Fix {file_info['path']}\n\n"
+                    f"Applied pattern-based fixes in PR #{pr_number}"
+                )
+
+                await self.client.update_file(
+                    owner,
+                    repo,
+                    file_info["path"],
+                    file_info["content"],
+                    commit_message,
+                    branch,
+                    current_sha,
+                )
+                self.logger.debug(
+                    f"Successfully updated {file_info['path']} (fallback)"
+                )
+            except Exception as file_error:
+                self.logger.error(
+                    f"Failed to update {file_info['path']}: {file_error}"
+                )
+
+    async def _post_api_fix_comment(
+        self,
+        owner: str,
+        repo: str,
+        pr_number: int,
+        files_modified: list[Path],
+    ) -> None:
+        """Post a summary comment on the PR after API fixes (best-effort)."""
+        file_names = [str(f) for f in files_modified]
+        comment_body = (
+            f"🛠️ **Pull Request Fixer**\n\n"
+            f"Fixed {len(files_modified)} file(s): {', '.join(file_names)}\n\n"
+            f"Changes applied via GitHub API.\n\n"
+            f"---\n"
+            f"*Automatically fixed by [pull-request-fixer]"
+            f"(https://github.com/lfreleng-actions/pull-request-fixer)*"
+        )
+
+        try:
+            await self.client.create_comment(
+                owner, repo, pr_number, comment_body
+            )
+        except Exception as e:
+            self.logger.debug(f"Failed to create PR comment: {e}")
