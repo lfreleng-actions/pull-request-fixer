@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2025 The Linux Foundation
 
+# aislop-ignore-file complexity/file-too-large -- cohesive PR file fixer module
+
 """Fix files in pull requests by cloning, modifying, and pushing changes.
 
 This module provides functionality for fixing files in GitHub pull requests
@@ -55,7 +57,6 @@ class PRFileFixer:
         Returns:
             Sanitized message with tokens removed
         """
-        # Remove common token patterns
         patterns = [
             r"ghp_[a-zA-Z0-9]{36}",  # GitHub personal access tokens
             r"ghs_[a-zA-Z0-9]{36}",  # GitHub server tokens
@@ -70,6 +71,7 @@ class PRFileFixer:
 
         return sanitized
 
+    # aislop-ignore-next-line complexity/function-too-long -- top-level fix flow
     async def fix_pr_by_url(  # noqa: PLR0911
         self,
         pr_url: str,
@@ -166,16 +168,21 @@ class PRFileFixer:
             head_repo = head.get("repo", {})
             clone_url = head_repo.get("clone_url", "")
 
+            user = pr_data.get("user", {})
+            author = user.get("login", "")
+            base = pr_data.get("base", {})
+            base_ref = base.get("ref", "")
+
             pr_info = PRInfo(
                 number=pr_number,
                 title=pr_data.get("title", ""),
                 repository=f"{owner}/{repo}",
                 url=pr_url,
-                author=pr_data.get("user", {}).get("login", ""),
+                author=author,
                 is_draft=pr_data.get("draft", False),
                 head_ref=head_ref,
                 head_sha=head_sha,
-                base_ref=pr_data.get("base", {}).get("ref", ""),
+                base_ref=base_ref,
                 mergeable=pr_data.get("mergeable", "unknown"),
                 merge_state_status=pr_data.get("mergeable_state", "unknown"),
             )
@@ -256,6 +263,7 @@ class PRFileFixer:
                 error=str(e),
             )
 
+    # aislop-ignore-next-line complexity/function-too-long -- git-based fix flow
     async def _fix_pr_with_git(  # noqa: PLR0911
         self,
         pr_info: PRInfo,
@@ -387,7 +395,6 @@ class PRFileFixer:
                         total_changes += 1
                         self.logger.debug(f"Modified {file_path.name}")
 
-                # Handle no files modified or dry-run mode
                 if not files_modified:
                     message = "No files required changes"
                     return GitHubFixResult(
@@ -610,10 +617,12 @@ class PRFileFixer:
                     file_modifications=[],
                 )
 
-            files_modified, file_modifications, files_to_update = (
-                await self._apply_fixes_to_files(
-                    matching_files, owner, repo, branch, spec
-                )
+            (
+                files_modified,
+                file_modifications,
+                files_to_update,
+            ) = await self._apply_fixes_to_files(
+                matching_files, owner, repo, branch, spec
             )
 
             # Second pass: batch update all modified files in a single commit.
@@ -703,9 +712,9 @@ class PRFileFixer:
             ]
 
         # Clone the PR branch to enumerate all files in the repository.
-        clone_url = (
-            pr_data.get("head", {}).get("repo", {}).get("clone_url", "")
-        )
+        head = pr_data.get("head", {})
+        head_repo = head.get("repo", {})
+        clone_url = head_repo.get("clone_url", "")
         if not clone_url:
             return None
 
@@ -794,9 +803,7 @@ class PRFileFixer:
                 )
             )
             if not spec.dry_run:
-                files_to_update.append(
-                    {"path": filename, "content": modified}
-                )
+                files_to_update.append({"path": filename, "content": modified})
 
         return files_modified, file_modifications, files_to_update
 

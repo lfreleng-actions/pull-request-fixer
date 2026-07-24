@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2025 The Linux Foundation
 
+# aislop-ignore-file complexity/file-too-large -- cohesive PR scanner module
+
 """Scanner for identifying pull requests across GitHub organizations.
 
 This module provides functionality for scanning GitHub organizations to find
@@ -94,7 +96,6 @@ class PRScanner:
         total_repos = await self._count_org_repositories(organization)
         if self.progress_tracker and total_repos > 0:
             self.progress_tracker.update_total_repositories(total_repos)
-            # Start the progress tracker now that we have the count
             self.progress_tracker.start()
 
         self.logger.debug(f"Found {total_repos} repositories in {organization}")
@@ -503,7 +504,6 @@ class PRScanner:
         # Check merge state status (lowercase from GraphQL)
         merge_state = (pr.get("mergeStateStatus") or "").lower()
 
-        # Check for merge conflicts via merge_state as well
         if merge_state == "dirty" and "Merge conflicts" not in blocking_reasons:
             blocking_reasons.append("Merge conflicts")
 
