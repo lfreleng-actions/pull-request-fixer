@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
+# aislop-ignore-next-line ruff/UP042 -- StrEnum requires Python 3.11+, project targets 3.10
 class OutputFormat(str, Enum):
     """Output format options."""
 

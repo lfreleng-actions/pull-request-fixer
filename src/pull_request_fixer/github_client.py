@@ -3,6 +3,8 @@
 
 """GitHub API client for repository and PR operations."""
 
+# aislop-ignore-file complexity/file-too-large -- cohesive GitHub API client
+
 from __future__ import annotations
 
 import base64
@@ -501,7 +503,6 @@ class GitHubClient:
         ref_data = await self.get_reference(owner, repo, f"heads/{branch}")
         current_commit_sha = ref_data["object"]["sha"]
 
-        # Get current commit to get tree SHA
         commit_data = await self._request(
             "GET",
             f"/repos/{owner}/{repo}/git/commits/{current_commit_sha}",
@@ -527,7 +528,6 @@ class GitHubClient:
                 "sha": blob_sha,
             }
 
-        # Create all blobs concurrently
         tree_items = await asyncio.gather(
             *[create_blob_for_file(file_info) for file_info in files]
         )
@@ -544,6 +544,7 @@ class GitHubClient:
 
         return commit_sha
 
+    # aislop-ignore-next-line complexity/too-many-params -- GitHub contents API shape
     async def update_file(
         self,
         owner: str,

@@ -156,7 +156,6 @@ def configure_git_identity(
             _set_repo_git_config(repo_dir, "gpg.format", gpg_format)
             applied_config["gpg.format"] = gpg_format
 
-        # Handle SSH-specific configuration
         if gpg_format == "ssh":
             # Copy SSH signing key
             ssh_key = _get_global_git_config("user.signingkey")

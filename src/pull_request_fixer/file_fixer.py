@@ -48,7 +48,6 @@ class FileFixer:
             if not path.is_file():
                 continue
 
-            # Get relative path for matching
             try:
                 rel_path = path.relative_to(root_dir)
                 rel_path_str = str(rel_path)
@@ -174,7 +173,6 @@ class FileFixer:
         removed_count = 0
 
         for line in lines:
-            # Check for context markers
             if context_start_regex and context_start_regex.search(line):
                 in_context = True
                 new_lines.append(line)

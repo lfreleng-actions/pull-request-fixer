@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 The Linux Foundation
+
+# Generated at build time by hatch-vcs; not authored source.
+src/pull_request_fixer/_version.py
+
+# Ad-hoc diagnostic and debug helpers, not shipped as production code.
+scripts
