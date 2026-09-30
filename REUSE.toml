@@ -9,7 +9,6 @@ version = 1
 path = [
      "src/pull_request_fixer/_version.py",
      "*.lock",
-     "src/markdown_table_fixer/_version.py",
      "test_coverage_report*",
      ".coverage*",
      "htmlcov/**",
