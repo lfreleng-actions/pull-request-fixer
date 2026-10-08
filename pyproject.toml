@@ -8,14 +8,14 @@ build-backend = "hatchling.build"
 [project]
 name = "pull-request-fixer"
 dynamic = ["version"]
-description = "Pull request formatter and fixer with GitHub integration"
+description = "Fix GitHub pull request titles, descriptions and files, for one pull request or across an organization"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "Apache-2.0"}
 authors = [
     {name = "The Linux Foundation", email = "releng@linuxfoundation.org"},
 ]
-keywords = ["pr", "pull-request", "formatter", "github", "pre-commit"]
+keywords = ["github", "pull-request", "pr", "automation", "commit-message", "regex"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Environment :: Console",
@@ -29,7 +29,7 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
     "Topic :: Software Development :: Quality Assurance",
-    "Topic :: Text Processing :: Markup :: Markdown",
+    "Topic :: Software Development :: Version Control :: Git",
 ]
 dependencies = [
     "typer>=0.20.0",
@@ -71,7 +71,7 @@ version-file = "src/pull_request_fixer/_version.py"
 packages = ["src/pull_request_fixer"]
 
 [tool.hatch.build.targets.sdist]
-include = ["src", "README.md", "LICENSE*", "pyproject.toml", ".pre-commit-hooks.yaml"]
+include = ["src", "README.md", "LICENSE*", "pyproject.toml"]
 
 [tool.ruff]
 target-version = "py312"
