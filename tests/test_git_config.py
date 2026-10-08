@@ -78,7 +78,7 @@ class TestConfigureGitIdentity:
     """Tests for configure_git_identity function."""
 
     def test_bot_identity_mode(self) -> None:
-        """Test BOT_IDENTITY mode."""
+        """Test BOT_IDENTITY mode commits as the bot without signing."""
         with tempfile.TemporaryDirectory() as tmpdir:
             repo_dir = Path(tmpdir)
             with patch("subprocess.run") as mock_run:
@@ -93,7 +93,15 @@ class TestConfigureGitIdentity:
                 assert config["user.name"] == "test-bot"
                 assert config["user.email"] == "bot@example.com"
                 assert config["mode"] == "bot_identity"
-                assert "commit.gpgsign" not in config
+                # A global commit.gpgsign=true must not leak into the
+                # clone, so signing is disabled in the repository config.
+                assert config["commit.gpgsign"] == "false"
+                mock_run.assert_any_call(
+                    ["git", "config", "commit.gpgsign", "false"],
+                    cwd=repo_dir,
+                    check=True,
+                    capture_output=True,
+                )
 
     def test_user_inherit_mode_no_signing(self) -> None:
         """Test USER_INHERIT mode when user has no signing enabled."""
@@ -229,7 +237,9 @@ class TestConfigureGitIdentity:
                     return MagicMock(returncode=1, stdout="")
                 return MagicMock(returncode=0)
 
-            with patch("subprocess.run", side_effect=mock_git_config):
+            with patch(
+                "subprocess.run", side_effect=mock_git_config
+            ) as mock_run:
                 config = configure_git_identity(
                     repo_dir,
                     mode=GitConfigMode.USER_INHERIT,
@@ -240,6 +250,13 @@ class TestConfigureGitIdentity:
                 assert config["user.name"] == "fallback-bot"
                 assert config["user.email"] == "fallback@example.com"
                 assert config["mode"] == "bot_identity_fallback"
+                assert config["commit.gpgsign"] == "false"
+                mock_run.assert_any_call(
+                    ["git", "config", "commit.gpgsign", "false"],
+                    cwd=repo_dir,
+                    check=True,
+                    capture_output=True,
+                )
 
     def test_invalid_mode(self) -> None:
         """Test that invalid mode raises ValueError."""

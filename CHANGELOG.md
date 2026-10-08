@@ -18,6 +18,12 @@ list every merged pull request, including dependency updates.
 
 ## [Unreleased]
 
+### Fixed
+
+- `--bot-identity`, and the bot fallback when no global Git identity
+  exists, now disable commit signing in the clone; before, a global
+  `commit.gpgsign=true` made the bot try to sign and fail
+
 ## [0.1.8] - 2026-10-08
 
 ### Changed

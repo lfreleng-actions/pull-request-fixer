@@ -264,8 +264,8 @@ These flags apply to the `git` method only:
   <noreply@linuxfoundation.org>` without signing
 
 If your global Git configuration has no `user.name` or `user.email`, the
-tool falls back to the bot identity. You cannot combine `--bot-identity`
-with `--disable-signing`.
+tool falls back to the bot identity, without signing. You cannot combine
+`--bot-identity` with `--disable-signing`.
 
 ### Previewing changes
 

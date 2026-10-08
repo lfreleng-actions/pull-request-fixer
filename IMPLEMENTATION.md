@@ -164,10 +164,12 @@ the temporary clone:
   `commit.gpgsign` is `true`, also copies `gpg.format`, `user.signingkey`,
   and the SSH (`gpg.ssh.*`) or GPG (`gpg.program`) settings.
 - `USER_NO_SIGN`: copies the identity and sets `commit.gpgsign=false`.
-- `BOT_IDENTITY`: uses `pull-request-fixer <noreply@linuxfoundation.org>`.
+- `BOT_IDENTITY`: uses `pull-request-fixer <noreply@linuxfoundation.org>`
+  and sets `commit.gpgsign=false`, so a global signing setting cannot
+  make the bot try to sign.
 
 Without a global `user.name` and `user.email`, both user modes fall back
-to the bot identity.
+to the bot identity, also unsigned.
 
 ## GitHub API client
 

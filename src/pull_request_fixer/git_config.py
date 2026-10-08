@@ -74,6 +74,34 @@ def _set_repo_git_config(repo_dir: Path, key: str, value: str) -> bool:
         return False
 
 
+def _apply_bot_identity(
+    repo_dir: Path, bot_name: str, bot_email: str, mode: str
+) -> dict[str, str]:
+    """Configure the bot identity with commit signing disabled.
+
+    Signing is switched off explicitly so a global ``commit.gpgsign=true``
+    cannot make the bot attempt to sign with a key it does not have.
+
+    Args:
+        repo_dir: Repository directory path
+        bot_name: Bot name to commit as
+        bot_email: Bot email to commit as
+        mode: Mode label recorded in the returned configuration
+
+    Returns:
+        Dict with applied configuration details
+    """
+    _set_repo_git_config(repo_dir, "user.name", bot_name)
+    _set_repo_git_config(repo_dir, "user.email", bot_email)
+    _set_repo_git_config(repo_dir, "commit.gpgsign", "false")
+    return {
+        "user.name": bot_name,
+        "user.email": bot_email,
+        "commit.gpgsign": "false",
+        "mode": mode,
+    }
+
+
 def configure_git_identity(
     repo_dir: Path,
     mode: str = GitConfigMode.USER_INHERIT,
@@ -99,17 +127,11 @@ def configure_git_identity(
         msg = f"Invalid mode: {mode}"
         raise ValueError(msg)
 
-    applied_config: dict[str, str] = {}
-
     if mode == GitConfigMode.BOT_IDENTITY:
-        # Use bot identity without signing
         logger.debug("Configuring git with bot identity (no signing)")
-        _set_repo_git_config(repo_dir, "user.name", bot_name)
-        _set_repo_git_config(repo_dir, "user.email", bot_email)
-        applied_config["user.name"] = bot_name
-        applied_config["user.email"] = bot_email
-        applied_config["mode"] = "bot_identity"
-        return applied_config
+        return _apply_bot_identity(
+            repo_dir, bot_name, bot_email, "bot_identity"
+        )
 
     # For USER_INHERIT and USER_NO_SIGN modes, try to get user's config
     user_name = _get_global_git_config("user.name")
@@ -119,12 +141,11 @@ def configure_git_identity(
         logger.warning(
             "User git config not found, falling back to bot identity"
         )
-        _set_repo_git_config(repo_dir, "user.name", bot_name)
-        _set_repo_git_config(repo_dir, "user.email", bot_email)
-        applied_config["user.name"] = bot_name
-        applied_config["user.email"] = bot_email
-        applied_config["mode"] = "bot_identity_fallback"
-        return applied_config
+        return _apply_bot_identity(
+            repo_dir, bot_name, bot_email, "bot_identity_fallback"
+        )
+
+    applied_config: dict[str, str] = {}
 
     # Set user identity
     _set_repo_git_config(repo_dir, "user.name", user_name)
