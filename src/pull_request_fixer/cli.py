@@ -183,7 +183,7 @@ def main(
     file_pattern: str | None = typer.Option(
         None,
         "--file-pattern",
-        help="Regex pattern to match file paths (e.g., './action.yaml')",
+        help="Regex searched in each repository-relative file path; anchor it to match one file (e.g., '^\\./action\\.yaml$')",
     ),
     search_pattern: str | None = typer.Option(
         None,
@@ -311,10 +311,10 @@ def main(
       pull-request-fixer myorg --fix-title --workers 8 --verbose
 
       # Fix files with regex (git method, default; uses local signing):
-      pull-request-fixer <PR-URL> --fix-files --file-pattern './action.yaml' --search-pattern 'type:' --remove-lines --context-start 'inputs:' --context-end 'runs:'
+      pull-request-fixer <PR-URL> --fix-files --file-pattern '^\\./action\\.yaml$' --search-pattern '^\\s+type:' --remove-lines --context-start '^inputs:' --context-end '^runs:'
 
       # Fix files with the GitHub API method:
-      pull-request-fixer <PR-URL> --fix-files --update-method api --file-pattern './action.yaml' --search-pattern 'type:' --remove-lines
+      pull-request-fixer <PR-URL> --fix-files --update-method api --file-pattern '^\\./action\\.yaml$' --search-pattern '^\\s+type:' --remove-lines --context-start '^inputs:' --context-end '^runs:'
     """
     # If no target provided, show help
     if target is None:

@@ -41,7 +41,7 @@ checks.
 ## Installation
 
 The tool needs Python 3.10 or newer. File fixing also needs `git` on
-`PATH`.
+`PATH`, except with `--update-method api --pr-content-only`.
 
 ```bash
 pip install pull-request-fixer
@@ -133,9 +133,8 @@ two differ.
 ### `--fix-body`
 
 Sets the pull request description to the first commit's message body,
-when the commit has a body and it differs from the current description.
-The tool strips trailing Git trailers from the body. It recognizes these
-trailers, case-insensitively:
+when the commit has a body. The tool strips trailing Git trailers from
+the body. It recognizes these trailers, case-insensitively:
 
 `Signed-off-by:`, `Co-authored-by:`, `Reviewed-by:`, `Tested-by:`,
 `Acked-by:`, `Cc:`, `Reported-by:`, `Suggested-by:`, `Fixes:`,
@@ -250,7 +249,8 @@ repositories that enforce DCO sign-off or signed commits.
 The `api` method reads and writes the head branch in the pull request's
 **base** repository, so it only works when the branch lives there, as it
 does for Dependabot and pre-commit.ci pull requests. Its commits carry no
-DCO sign-off.
+DCO sign-off. It normally writes all changes in one commit; if that
+batch commit fails, it falls back to one `Fix <path>` commit per file.
 
 ### Git identity and signing
 

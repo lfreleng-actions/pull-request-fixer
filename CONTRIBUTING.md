@@ -81,12 +81,6 @@ Run every hook against the files you changed:
 prek run --files <changed files>
 ```
 
-Or against the whole repository:
-
-```bash
-prek run --all-files
-```
-
 The hooks include ruff, mypy, basedpyright, markdownlint, write-good,
 shellcheck, actionlint, reuse, gitlint and pytest. Do not bypass them
 with `--no-verify`.

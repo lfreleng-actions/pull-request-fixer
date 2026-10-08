@@ -155,8 +155,8 @@ uv run bash scripts/integration-test.sh
 ### Code Quality Checks
 
 ```bash
-# All hooks
-prek run --all-files
+# Hooks, on the files you changed
+prek run --files <changed files>
 
 # Individual tools
 uv run ruff check src tests scripts

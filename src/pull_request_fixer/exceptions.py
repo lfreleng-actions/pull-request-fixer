@@ -12,6 +12,10 @@ class PullRequestFixerError(Exception):
     pass
 
 
+# Former name, kept so existing imports and handlers keep working.
+PRTitleFixerError = PullRequestFixerError
+
+
 class FileAccessError(PullRequestFixerError):
     """Error accessing or reading a file."""
 

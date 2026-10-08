@@ -20,7 +20,8 @@ list every merged pull request, including dependency updates.
 
 ### Changed
 
-- Rename the base exception `PRTitleFixerError` to `PullRequestFixerError`
+- Rename the base exception `PRTitleFixerError` to `PullRequestFixerError`;
+  the old name remains as an alias
 - Rewrite the documentation, which still described the parent
   `markdown-table-fixer` project in places, to match the tool's behaviour
 - Replace the inherited `scripts/integration-test.sh` with offline tests

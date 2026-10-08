@@ -51,7 +51,7 @@ validation. It runs offline; see [scripts/README.md](scripts/README.md).
 ### Linting
 
 ```bash
-prek run --all-files
+prek run --files <changed files>
 ```
 
 The hooks include ruff, mypy, basedpyright, markdownlint, write-good,
@@ -177,6 +177,8 @@ pull-request-fixer https://github.com/OWNER/REPO/pull/NUMBER \
 ```
 
 - [ ] the branch gains one new commit titled `Fix 1 file(s) in PR #NUMBER`
+  (if the batch commit fails, the tool falls back to one `Fix <path>`
+  commit per file)
 - [ ] `--pr-content-only` limits changes to files the pull request already
   changes
 

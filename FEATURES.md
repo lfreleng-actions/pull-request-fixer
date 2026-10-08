@@ -29,8 +29,8 @@ This document summarizes what `pull-request-fixer` does. The
 - **Trailer removal**: `--fix-body` strips trailing Git trailers
   (`Signed-off-by:`, `Co-authored-by:`, `Change-Id:` and others) from the
   description.
-- **No-op when correct**: the tool only updates fields that differ, so
-  repeat runs make no further changes.
+- **Title no-op when correct**: the title fix only updates titles that
+  differ, so repeat runs leave fixed titles alone.
 - **Check re-runs**: after an update, the tool re-requests failed,
   cancelled, timed-out and action-required check runs, so title checks
   can pass without a new push.

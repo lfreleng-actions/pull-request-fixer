@@ -50,12 +50,15 @@ record_fail() {
     FAILED_TESTS+=("$1")
 }
 
-# Run the CLI without a token, capturing combined output and exit code
+# Run the CLI without a token, capturing combined output and exit code.
+# Typer forces styled output when GITHUB_ACTIONS or FORCE_COLOR is set,
+# so strip ANSI escape sequences to keep the text assertions reliable.
 run_cli() {
     set +e
     CLI_OUTPUT=$(env -u GITHUB_TOKEN COLUMNS=200 pull-request-fixer "$@" 2>&1)
     CLI_EXIT=$?
     set -e
+    CLI_OUTPUT=$(printf '%s' "$CLI_OUTPUT" | perl -pe 's/\e\[[0-9;]*[A-Za-z]//g')
 }
 
 # Assert the last run_cli call exited with a code and printed some text
@@ -96,15 +99,16 @@ test_short_help_flag() {
 }
 
 test_help_documents_options() {
-    print_test "Help output documents the fix and filter options"
+    print_test "Help output documents every option"
     run_cli --help
     local option
     local missing=""
-    for option in --fix-title --fix-body --fix-files --file-pattern \
+    for option in --token --fix-title --fix-body --fix-files --file-pattern \
         --search-pattern --replacement --remove-lines --context-start \
         --context-end --pr-content-only --show-diff --update-method \
         --disable-signing --bot-identity --include-drafts \
-        --no-blocked-only --dry-run --workers; do
+        --no-blocked-only --dry-run --workers --verbose --quiet \
+        --log-level --version --help; do
         if ! grep -qF -- "$option" <<< "$CLI_OUTPUT"; then
             missing="$missing $option"
         fi
