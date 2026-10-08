@@ -146,6 +146,7 @@ app = typer.Typer(
 
 # aislop-ignore-next-line complexity/function-too-long -- top-level CLI command
 def main(
+    *,
     target: str = typer.Argument(
         None,
         help="GitHub organization name/URL or PR URL (e.g., 'myorg', 'https://github.com/myorg', or 'https://github.com/owner/repo/pull/123')",
@@ -695,8 +696,8 @@ async def process_single_pr(
                             owner,
                             repo_name,
                             pr_number,
-                            result,
-                            command_args,
+                            result=result,
+                            command_args=command_args,
                         )
 
                 return
@@ -945,8 +946,8 @@ async def _process_pr_files(
                     owner,
                     repo_name,
                     pr_number,
-                    result,
-                    command_args,
+                    result=result,
+                    command_args=command_args,
                 )
 
         return result_dict
@@ -1278,6 +1279,7 @@ async def scan_and_fix_organization(
 # aislop-ignore-next-line complexity/function-too-long -- single-PR processing flow
 async def process_pr(
     client: GitHubClient,
+    *,
     owner: str,
     repo_name: str,
     pr_data: dict[str, Any],
@@ -1737,6 +1739,7 @@ async def create_file_fix_comment(
     owner: str,
     repo: str,
     pr_number: int,
+    *,
     result: GitHubFixResult,
     command_args: dict[str, Any],
 ) -> None:

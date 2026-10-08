@@ -788,7 +788,12 @@ class PRFileFixer:
 
         for file_data in matching_files:
             result = await self._apply_fix_to_file(
-                fixer, file_data, owner, repo, branch, spec
+                fixer,
+                file_data,
+                owner=owner,
+                repo=repo,
+                branch=branch,
+                spec=spec,
             )
             if result is None:
                 continue
@@ -811,6 +816,7 @@ class PRFileFixer:
         self,
         fixer: FileFixer,
         file_data: dict[str, Any],
+        *,
         owner: str,
         repo: str,
         branch: str,
@@ -946,10 +952,10 @@ class PRFileFixer:
                     owner,
                     repo,
                     file_info["path"],
-                    file_info["content"],
-                    commit_message,
-                    branch,
-                    current_sha,
+                    content=file_info["content"],
+                    message=commit_message,
+                    branch=branch,
+                    sha=current_sha,
                 )
                 self.logger.debug(
                     f"Successfully updated {file_info['path']} (fallback)"
