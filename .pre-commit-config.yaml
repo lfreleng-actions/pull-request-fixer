@@ -7,17 +7,71 @@ ci:
   # pre-commit.ci sandbox prevents network calls; disable gha-workflow-linter.
   # aislop also runs engines that can call the network at scan time
   # (dependency audits), so it cannot run in the sandbox either.
-  skip: [pytest, gha-workflow-linter, aislop]
+  #
+  # pytest runs through 'uv run' against the project's own environment,
+  # which the sandbox does not provide.
+  #
+  # Adapted from actions-template for a Python-only repository: the
+  # template's eslint and Go hooks, and the manifest guard they share,
+  # are omitted because this repository has no JavaScript or Go sources.
+  skip:
+    - gha-workflow-linter
+    - aislop
+    - pytest
   autofix_commit_msg: |
-    Chore: pre-commit autofixes
+    Chore: Pre-commit autofixes
 
     Signed-off-by: pre-commit-ci[bot] <pre-commit-ci@users.noreply.github.com>
   autoupdate_commit_msg: |
-    Chore: pre-commit autoupdate
+    Chore: Pre-commit autoupdate
 
     Signed-off-by: pre-commit-ci[bot] <pre-commit-ci@users.noreply.github.com>
 
+# gitlint declares stages: [commit-msg]; without installing that hook
+# type it never runs. Hooks that declare no stage would otherwise run
+# again at commit-msg, so confine them to pre-commit.
+default_install_hook_types: [pre-commit, commit-msg]
+default_stages: [pre-commit]
+
+exclude: "^docs/conf.py"
+
 repos:
+  # Guard the pins below before any of them run.
+  #
+  # 'pre-commit autoupdate' resolves each repo to its newest tag with no
+  # semantic-version filtering, so a maintainer who pushes a non-release
+  # tag drags every downstream consumer off the release they pinned.
+  # Nothing else here notices: the resulting SHA checks out cleanly, so
+  # every hook still passes and CI stays green. kjanat/actionlint did
+  # exactly this on 2026-09-14, a day after v1.17.0.
+  #
+  # A '# frozen:' label records the ref --freeze resolved, so the whole
+  # label is matched against the shape a release takes: optional 'v',
+  # dot-separated digits, optional numeric revision. That accepts every
+  # form in use here, '0.38.0' and 'v0.11.0.1-1' included, and rejects
+  # word-shaped refs whatever they start with, so 'v1-experiment' and
+  # '2026-research' fail rather than sneaking past a prefix check.
+  #
+  # Pre-release labels such as 'v2.0.0-rc1' are rejected too: nothing
+  # distinguishes '-rc1' from '-experiment' lexically, and adopting a
+  # release candidate unnoticed is the failure this hook exists to stop.
+  #
+  # Matching is anchored to 'rev:' lines with horizontal whitespace only,
+  # so prose is never checked, even on the next line, and an empty or
+  # unspaced label is flagged.
+  #
+  # pygrep needs no toolchain or network, so this runs on pre-commit.ci.
+  # Each rev is the SHA '--freeze' writes: for an annotated tag, the tag
+  # object, not its commit; a commit would be reverted on autoupdate.
+  - repo: local
+    hooks:
+      - id: frozen-rev-is-a-release
+        name: frozen revs name a release
+        language: pygrep
+        # yamllint disable-line rule:line-length
+        entry: '^[ \t]*rev:[ \t]*\S+[ \t]+#[ \t]*frozen:(?![ \t]+v?[0-9]+(\.[0-9]+)*(-[0-9]+)?[ \t]*$)'
+        files: '^\.pre-commit-config\.yaml$'
+
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: 3e8a8703264a2f4a69428a0aa4dcb512790b2c8c  # frozen: v6.0.0
     hooks:
@@ -41,8 +95,23 @@ repos:
           - --branch=rc
           - --branch=production
 
+  # Block credentials before they reach a commit. Scans staged content
+  # rather than paths, so it also catches secrets in files that no
+  # .gitignore rule covers. Guards new commits only; it does not scan
+  # existing history.
+  #
+  # always_run is required: the hook reads the staged index directly, but
+  # pre-commit still gates invocation on the file classifier, so the
+  # top-level exclude above would otherwise skip scanning entirely on a
+  # commit that touches only excluded paths.
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: 2ca41cc1372d1e939a6a879f18cdc19fc1cac1ce  # frozen: v8.30.0
+    hooks:
+      - id: gitleaks
+        always_run: true
+
   - repo: https://github.com/jorisroovers/gitlint
-    rev: acc9d9de6369b76d22cb4167029d2035e8730b98 # frozen: v0.19.1
+    rev: acc9d9de6369b76d22cb4167029d2035e8730b98  # frozen: v0.19.1
     hooks:
       - id: gitlint
 
@@ -56,10 +125,8 @@ repos:
     rev: f12be1ebaa5351c1fc76472de98db2c3446c8253  # frozen: v0.16.10
     hooks:
       - id: ruff
-        files: ^(scripts|tests|custom_components)/.+\.py$
         args: [--fix, --exit-non-zero-on-fix]
       - id: ruff-format
-        files: ^(scripts|tests|custom_components)/.+\.py$
 
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: 2834ec6639549dd6796205c8f011dedcd587288b  # frozen: v2.4.0
@@ -67,11 +134,15 @@ repos:
       - id: mypy
 
   - repo: https://github.com/btford/write-good
-    rev: ab66ce10136dfad5146e69e70f82a3efac8842c1 # frozen: v1.0.8
+    rev: ab66ce10136dfad5146e69e70f82a3efac8842c1  # frozen: v1.0.8
     hooks:
       - id: write-good
         files: "\\.(rst|md|markdown|mdown|mkdn)$"
-        args: [--no-illusion, --no-adverb]
+        # Deviation from actions-template: the adverb check flags every
+        # 'only', including this tool's own option names
+        # (--no-blocked-only, --pr-content-only), which the documentation
+        # cannot reword.
+        args: [--no-adverb]
 
   - repo: https://github.com/shellcheck-py/shellcheck-py
     rev: a6564f5d57444e123433a5c9af733e3975c77229  # frozen: v0.11.0.1-1
@@ -89,12 +160,37 @@ repos:
     hooks:
       - id: reuse
 
-  # Replaces: https://github.com/rhysd/actionlint
-  # Permits actionlint to run both locally and with precommit.ci/GitHub
-  - repo: https://github.com/Mateusz-Grzelinski/actionlint-py
-    rev: 357f7eec6dec49bf7693dc0dbec30212226d5492  # frozen: v1.7.12.25
+  # Actively maintained fork of https://github.com/rhysd/actionlint
+  # Unlike upstream v1.7.12, this fork understands GitHub's
+  # self-repository 'uses: $/{path}' syntax, so it no longer conflicts
+  # with zizmor's self-repository audit. A bare '$/' (an action at the
+  # repository root) is still rejected; actions-template carries a
+  # path-scoped ignore for that case in .github/actionlint.yaml, which
+  # this repository does not need because it ships no action.
+  #
+  # The '-shellcheck' variant, not the plain 'actionlint' hook. Both run
+  # the same linter; they differ only in where the ShellCheck used for
+  # 'run:' blocks comes from. The plain hook builds into an isolated
+  # GOPATH and picks up ShellCheck only if one already happens to be on
+  # PATH, which made the check environment-dependent: a contributor with
+  # ShellCheck installed saw findings that pre-commit.ci, whose
+  # shellcheck-py hook lives in its own isolated environment, did not.
+  # CI was the more permissive of the two, which is the wrong way round.
+  # This variant supplies its own Go build of ShellCheck, so 'run:'
+  # blocks are checked identically everywhere.
+  #
+  # It does not replace the shellcheck-py hook above: that covers '.sh'
+  # files, this covers shell embedded in workflows. The two carry
+  # separate ShellCheck versions, so a finding may appear under one
+  # before the other.
+  #
+  # Not added to ci.skip: language: golang is supported on pre-commit.ci,
+  # which builds a 'golang@system' environment for the gitleaks hook
+  # above in the same way.
+  - repo: https://github.com/kjanat/actionlint
+    rev: 2da2ceb4af2c7ecc48f5b9311d85080c3971b5f0  # frozen: v1.17.0
     hooks:
-      - id: actionlint
+      - id: actionlint-shellcheck
 
   # Check for misspellings in documentation files
   - repo: https://github.com/codespell-project/codespell
@@ -103,15 +199,59 @@ repos:
       - id: codespell
 
   # Requires a mirror, primary repo lacks .pre-commit-hooks.yaml
+  #
+  # Runs over the whole project rather than the staged files, matching
+  # the [tool.basedpyright] include list, so a change cannot break a file
+  # it does not touch unnoticed. '--warnings' fails the hook on warnings
+  # as well as errors; without it basedpyright exits 0 on warnings and
+  # only an editor's language server would surface them.
   - repo: https://github.com/DetachHead/basedpyright-prek-mirror
     rev: a11caebebdbf797e1e96611123db279b334a7675  # frozen: 1.40.2
     hooks:
       - id: basedpyright
+        pass_filenames: false
+        args:
+          - --warnings
+          - src
+          - tests
+          - scripts
+          - test_blocked_pr_logic.py
+          - test_integration.py
 
   - repo: https://github.com/lfreleng-actions/gha-workflow-linter
     rev: b23b60e5884e985320a030e6114032152e2373cd  # frozen: v1.7.1
     hooks:
       - id: gha-workflow-linter
+
+  # Catch AI slop developer-side before it reaches a pull request.
+  # Runs the full-repository quality gate, scored against
+  # .aislop/config.yml (failBelow: 100). A local hook installing the
+  # published npm package: the scanaislop/aislop git repository does
+  # not ship the built dist/, so its bundled pre-commit hook cannot
+  # install. Bump the pinned version here manually when new aislop
+  # releases ship.
+  - repo: local
+    hooks:
+      - id: aislop
+        name: aislop
+        entry: aislop ci --human
+        language: node
+        additional_dependencies: ["aislop@0.13.1"]
+        pass_filenames: false
+        always_run: true
+
+  # Run the unit tests before each commit. A local system hook using the
+  # project's own uv environment, so it needs 'uv sync --extra dev' first;
+  # skipped on pre-commit.ci (see ci.skip above).
+  - repo: local
+    hooks:
+      - id: pytest
+        name: pytest
+        entry: uv
+        args: [run, pytest, --tb=short, -q]
+        language: system
+        pass_filenames: false
+        always_run: true
 
   - repo: https://github.com/python-jsonschema/check-jsonschema
     rev: 4f85d46a92dc17713078e5de73f8a13190edf6fc  # frozen: 0.38.2
@@ -127,28 +267,3 @@ repos:
         types:
           - yaml
       - id: check-readthedocs
-
-  - repo: local
-    hooks:
-      - id: pytest
-        name: pytest
-        entry: uv
-        args: [run, pytest, --tb=short, -q]
-        language: system
-        pass_filenames: false
-        always_run: true
-
-      # Catch AI slop developer-side before it reaches a pull request.
-      # Runs the full-repository quality gate, scored against
-      # .aislop/config.yml (failBelow: 100). A local hook installing the
-      # published npm package: the scanaislop/aislop git repository does
-      # not ship the built dist/, so its bundled pre-commit hook cannot
-      # install. Bump the pinned version here manually when new aislop
-      # releases ship.
-      - id: aislop
-        name: aislop
-        entry: aislop ci --human
-        language: node
-        additional_dependencies: ["aislop@0.13.1"]
-        pass_filenames: false
-        always_run: true

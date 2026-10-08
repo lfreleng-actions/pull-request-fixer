@@ -82,8 +82,9 @@ prek run --files <changed files>
 ```
 
 The hooks include ruff, mypy, basedpyright, markdownlint, write-good,
-shellcheck, actionlint, reuse, gitlint and pytest. Do not bypass them
-with `--no-verify`.
+shellcheck, actionlint, gitleaks, reuse, gitlint and pytest. basedpyright
+checks the whole project and fails on warnings as well as errors. Do not
+bypass the hooks with `--no-verify`.
 
 ### Commit Messages
 
@@ -100,7 +101,8 @@ The allowed types are `Fix`, `Feat`, `Chore`, `Docs`, `Style`,
 optional.
 
 - Use the imperative mood ("Add option", not "Added option").
-- Keep the subject short and omit a trailing period.
+- Capitalize the description after the colon, keep the subject to 50
+  characters, and omit a trailing period.
 - Separate the subject from the body with a blank line, and wrap the body
   at 72 characters.
 - Explain what the change does and why in the body.

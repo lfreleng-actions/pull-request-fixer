@@ -55,7 +55,8 @@ prek run --files <changed files>
 ```
 
 The hooks include ruff, mypy, basedpyright, markdownlint, write-good,
-shellcheck, actionlint, reuse and gitlint.
+shellcheck, actionlint, gitleaks, reuse and gitlint. basedpyright checks
+the whole project and fails on warnings as well as errors.
 
 ## Manual testing against GitHub
 
