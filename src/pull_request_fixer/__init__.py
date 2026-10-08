@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2025 The Linux Foundation
 
-"""Markdown table formatter and linter with GitHub integration."""
+"""Fix GitHub pull request titles, descriptions and files."""
 
 from __future__ import annotations
 
