@@ -18,22 +18,31 @@ list every merged pull request, including dependency updates.
 
 ## [Unreleased]
 
+### Fixed
+
+- `--bot-identity`, and the bot fallback when no global Git identity
+  exists, now disable commit signing in the clone; before, a global
+  `commit.gpgsign=true` made the bot try to sign and fail
+
+## [0.1.8] - 2026-10-08
+
 ### Changed
 
 - Rename the base exception `PRTitleFixerError` to `PullRequestFixerError`;
-  the old name remains as an alias
+  the old name remains as an alias (#360)
 - Rewrite the documentation, which still described the parent
-  `markdown-table-fixer` project in places, to match the tool's behaviour
+  `markdown-table-fixer` project in places, to match the tool's
+  behaviour (#360)
 - Replace the inherited `scripts/integration-test.sh` with offline tests
-  of this CLI
+  of this CLI (#360)
 
 ### Removed
 
-- The placeholder `action.yaml`, which never ran the tool
+- The placeholder `action.yaml`, which never ran the tool (#360)
 - The `.pre-commit-hooks.yaml` hook definition; the tool acts on remote
-  pull requests and cannot run as a pre-commit hook
+  pull requests and cannot run as a pre-commit hook (#360)
 - The unused `pull_request_fixer.pr_fixer` module and the unused
-  `OutputFormat`, `BlockedPR` and `GitHubScanResult` models
+  `OutputFormat`, `BlockedPR` and `GitHubScanResult` models (#360)
 
 ### Fixed
 
@@ -114,7 +123,8 @@ list every merged pull request, including dependency updates.
   message, for one pull request or across a GitHub organization
 - Blocked pull request filtering, dry-run mode and parallel processing
 
-[Unreleased]: https://github.com/lfreleng-actions/pull-request-fixer/compare/v0.1.7...HEAD
+[Unreleased]: https://github.com/lfreleng-actions/pull-request-fixer/compare/v0.1.8...HEAD
+[0.1.8]: https://github.com/lfreleng-actions/pull-request-fixer/compare/v0.1.7...v0.1.8
 [0.1.7]: https://github.com/lfreleng-actions/pull-request-fixer/compare/v0.1.6...v0.1.7
 [0.1.6]: https://github.com/lfreleng-actions/pull-request-fixer/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/lfreleng-actions/pull-request-fixer/compare/v0.1.4...v0.1.5
