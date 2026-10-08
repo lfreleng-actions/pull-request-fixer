@@ -118,9 +118,17 @@ skip-magic-trailing-comma = false
 line-ending = "auto"
 
 [tool.basedpyright]
-pythonVersion = "3.12"
+# Check against the oldest supported Python (requires-python >= 3.10), so
+# use of a newer standard library API is reported rather than hidden.
+pythonVersion = "3.10"
 pythonPlatform = "All"
 typeCheckingMode = "standard"
+# Scope a bare ``basedpyright`` invocation to our own code.  The
+# pre-commit hook passes these same paths as explicit targets with
+# ``pass_filenames: false`` (explicit arguments override ``include``);
+# this list governs the runs that supply no targets --- a bare
+# ``basedpyright`` on the command line, and an editor's language server
+# --- so those analyse the same set the hook does.
 include = ["src", "tests", "scripts", "test_blocked_pr_logic.py", "test_integration.py"]
 exclude = [
     "src/pull_request_fixer/_version.py",
@@ -130,17 +138,25 @@ exclude = [
 ]
 
 # --- Errors we want to catch and fix ---
-reportMissingTypeArgument = "warning"
-reportOptionalMemberAccess = "warning"
-reportCallIssue = "warning"
-reportAssignmentType = "warning"
-reportReturnType = "warning"
-reportGeneralTypeIssues = "warning"
-reportUninitializedInstanceVariable = "warning"
+# These are genuine type defects, so they fail the build.  The
+# ``--warnings`` flag on the pre-commit hook additionally fails on any
+# rule still classified as a warning, so a newly introduced diagnostic
+# cannot slip through by virtue of its default severity.
+reportMissingTypeArgument = "error"
+reportOptionalMemberAccess = "error"
+reportCallIssue = "error"
+reportAssignmentType = "error"
+reportReturnType = "error"
+reportGeneralTypeIssues = "error"
+reportUninitializedInstanceVariable = "error"
 
 # --- Intentional patterns we suppress ---
 # Third-party imports cannot be resolved in pre-commit.ci sandbox
 reportMissingImports = false
+# Same cause, different symptom: a typed stub can resolve in the sandbox
+# without the package source.  An artefact of where the check runs, not
+# of the code.
+reportMissingModuleSource = false
 # Typer uses Option() calls in parameter defaults by design
 reportCallInDefaultInitializer = false
 # Typer parameters are consumed by the framework, not the function body

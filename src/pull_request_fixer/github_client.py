@@ -550,6 +550,7 @@ class GitHubClient:
         owner: str,
         repo: str,
         path: str,
+        *,
         content: str,
         message: str,
         branch: str,
