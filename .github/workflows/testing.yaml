@@ -2,8 +2,9 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2025 The Linux Foundation
 
-# Action test/validation workflow
-name: "Test GitHub Action 🧪"
+# Builds the package, then tests the pull-request-fixer CLI offline and
+# with a dry-run scan of the repository owner's organization
+name: "Test CLI 🧪"
 
 # yamllint disable-line rule:truthy
 on:
@@ -94,13 +95,11 @@ jobs:
           pull-request-fixer --version
           pull-request-fixer --help
 
-      - name: "Run unit tests"
+      - name: "Run CLI integration tests"
         shell: bash
         run: |
-          # Run pytest tests if they exist
-          if [ -f "tests/test_graphql_queries.py" ]; then
-            uv run pytest tests/test_graphql_queries.py -v || true
-          fi
+          # Offline checks of help, version and argument validation
+          bash scripts/integration-test.sh
 
   ### Test against local GitHub organization ###
   integration-test:
@@ -176,13 +175,14 @@ jobs:
             2>&1 | tee scan.log
 
           # Extract key metrics from output
-          if grep -q "Found.*open PRs" scan.log; then
-            grep "Found.*open PRs" scan.log >> "$GITHUB_STEP_SUMMARY"
+          if grep -q "Found [0-9]* blocked PRs" scan.log; then
+            grep "Found [0-9]* blocked PRs" scan.log >> "$GITHUB_STEP_SUMMARY"
           fi
 
-          if grep -q "Found.*PRs with title mismatches" scan.log; then
-            grep "Found.*PRs with title mismatches" scan.log \
-              >> "$GITHUB_STEP_SUMMARY"
+          if grep -q -E "need fixes|Would apply fixes|No blocked PRs found" \
+            scan.log; then
+            grep -E "need fixes|Would apply fixes|No blocked PRs found" \
+              scan.log >> "$GITHUB_STEP_SUMMARY"
           fi
 
           echo "" >> "$GITHUB_STEP_SUMMARY"
