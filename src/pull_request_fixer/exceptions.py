@@ -1,30 +1,30 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2025 The Linux Foundation
 
-"""Custom exceptions for pr-title-fixer."""
+"""Custom exceptions for pull-request-fixer."""
 
 from __future__ import annotations
 
 
-class PRTitleFixerError(Exception):
-    """Base exception for pr-title-fixer."""
+class PullRequestFixerError(Exception):
+    """Base exception for pull-request-fixer."""
 
     pass
 
 
-class FileAccessError(PRTitleFixerError):
+class FileAccessError(PullRequestFixerError):
     """Error accessing or reading a file."""
 
     pass
 
 
-class ResourceNotFoundError(PRTitleFixerError):
+class ResourceNotFoundError(PullRequestFixerError):
     """Resource not found (404 error)."""
 
     pass
 
 
-class GitHubAPIError(PRTitleFixerError):
+class GitHubAPIError(PullRequestFixerError):
     """Error communicating with GitHub API."""
 
     pass
@@ -54,19 +54,19 @@ class RateLimitError(GitHubAPIError):
         self.reset_time = reset_time
 
 
-class NetworkError(PRTitleFixerError):
+class NetworkError(PullRequestFixerError):
     """Network communication error."""
 
     pass
 
 
-class GitOperationError(PRTitleFixerError):
+class GitOperationError(PullRequestFixerError):
     """Error performing git operation."""
 
     pass
 
 
-class ConfigurationError(PRTitleFixerError):
+class ConfigurationError(PullRequestFixerError):
     """Configuration error."""
 
     pass

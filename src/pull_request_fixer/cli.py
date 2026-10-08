@@ -288,12 +288,16 @@ def main(
     Pull request fixer - automatically fix PR titles, bodies, and files.
 
     Can process either:
-    - An entire organization: By default scans only blocked pull requests (use --no-blocked-only for all PRs)
+    - An entire organization: Scans the organization for pull requests to fix
     - A specific PR: Processes only that pull request
 
+    Both modes only act on blocked pull requests (merge conflicts, behind the
+    base branch, or failing checks) by default; use --no-blocked-only to
+    process pull requests regardless of their state.
+
     Update Methods (for --fix-files only):
-    - 'git' (default): Clone repo, amend commit, force-push (respects signing)
-    - 'api': Use GitHub API to update files (shows as verified by GitHub)
+    - 'git' (default): Clone the PR branch, amend its last commit, force-push
+    - 'api': Create a new commit on the PR branch through the GitHub API
 
     Git Identity & Signing (only applies to 'git' update method with --fix-files):
     - By default, uses your git user.name, user.email, and commit signing settings
@@ -306,13 +310,11 @@ def main(
       pull-request-fixer https://github.com/owner/repo/pull/123 --fix-title
       pull-request-fixer myorg --fix-title --workers 8 --verbose
 
-      # Fix files with regex (API method, default):
-      pull-request-fixer <PR-URL> --fix-files --file-pattern './action.yaml' \
-        --search-pattern 'type:' --remove-lines --context-start 'inputs:' --context-end 'runs:'
+      # Fix files with regex (git method, default; uses local signing):
+      pull-request-fixer <PR-URL> --fix-files --file-pattern './action.yaml' --search-pattern 'type:' --remove-lines --context-start 'inputs:' --context-end 'runs:'
 
-      # Fix files with git method (uses local signing):
-      pull-request-fixer <PR-URL> --fix-files --update-method git \
-        --file-pattern './action.yaml' --search-pattern 'type:' --remove-lines
+      # Fix files with the GitHub API method:
+      pull-request-fixer <PR-URL> --fix-files --update-method api --file-pattern './action.yaml' --search-pattern 'type:' --remove-lines
     """
     # If no target provided, show help
     if target is None:
@@ -545,7 +547,7 @@ async def process_single_pr(
 
     try:
         async with GitHubClient(token) as client:  # type: ignore[attr-defined]
-            # Check if PR is blocked if --blocked-only is specified
+            # Only blocked PRs are processed unless --no-blocked-only is set
             if blocked_only:
                 pr_info = extract_pr_info_from_url(pr_url)
                 if not pr_info:
@@ -648,7 +650,7 @@ async def process_single_pr(
                     console.print(f"✓ PR is blocked: {reason}")
                     console.print()
 
-            # Handle file fixing separately (uses Git operations)
+            # File fixing takes precedence over title/body fixing
             if fix_files and file_pattern and search_pattern:
                 from .pr_file_fixer import PRFileFixer
 

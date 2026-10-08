@@ -1,25 +1,15 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2025 The Linux Foundation
 
-"""Data models for pr-title-fixer."""
+"""Data models for pull-request-fixer."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from pathlib import Path
-
-
-# aislop-ignore-next-line ruff/UP042 -- StrEnum requires Python 3.11+, project targets 3.10
-class OutputFormat(str, Enum):
-    """Output format options."""
-
-    TEXT = "text"
-    JSON = "json"
-    TABLE = "table"
 
 
 @dataclass
@@ -37,27 +27,6 @@ class PRInfo:
     base_ref: str
     mergeable: str
     merge_state_status: str
-
-
-@dataclass
-class BlockedPR:
-    """A blocked pull request with blocking reasons."""
-
-    pr_info: PRInfo
-    blocking_reasons: list[str]
-    has_title_issues: bool = False
-
-
-@dataclass
-class GitHubScanResult:
-    """Results from scanning a GitHub organization."""
-
-    organization: str
-    repositories_scanned: int = 0
-    total_prs: int = 0
-    blocked_prs: list[BlockedPR] = field(default_factory=list)
-    prs_fixed: int = 0
-    errors: list[str] = field(default_factory=list)
 
 
 @dataclass
