@@ -121,11 +121,12 @@ Every commit must carry a cryptographic signature and a Developer
 Certificate of Origin sign-off:
 
 ```bash
-git commit -S -s
+git commit --gpg-sign --signoff
 ```
 
-`-S` signs the commit and `-s` adds the `Signed-off-by` line certifying
-that you have the right to submit the code under the project's license.
+`--gpg-sign` (`-S`) signs the commit and `--signoff` (`-s`) adds the
+`Signed-off-by` line certifying that you have the right to submit the
+code under the project's license.
 Maintainers cannot merge a pull request containing any unsigned commit.
 
 If an AI coding agent helped write the change, add a `Co-authored-by`
