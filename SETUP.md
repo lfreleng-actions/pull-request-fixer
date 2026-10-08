@@ -5,213 +5,117 @@ SPDX-FileCopyrightText: 2025 The Linux Foundation
 
 # Setup Guide
 
-This guide covers different ways to set up and use markdown-table-fixer.
+This guide covers installing `pull-request-fixer`, running it on a
+schedule in GitHub Actions, and setting up a development environment.
 
 ## Table of Contents
 
 - [Quick Start](#quick-start)
 - [Installation Methods](#installation-methods)
-- [Pre-commit Integration](#pre-commit-integration)
-- [CI/CD Integration](#cicd-integration)
+- [Requirements](#requirements)
+- [Running in GitHub Actions](#running-in-github-actions)
 - [Development Setup](#development-setup)
 - [Troubleshooting](#troubleshooting)
 
 ## Quick Start
 
-The fastest way to get started:
-
 ```bash
-# Install with pip
-pip install markdown-table-fixer
+# Install
+uv tool install pull-request-fixer
 
-# Run on current directory
-markdown-table-fixer lint --fix
+# Provide a GitHub token
+export GITHUB_TOKEN=ghp_xxxxxxxxxxxxx
+
+# Preview title fixes for blocked pull requests in an organization
+pull-request-fixer myorg --fix-title --dry-run
 ```
 
 ## Installation Methods
 
+### Using uv
+
+```bash
+uv tool install pull-request-fixer
+```
+
+Or run it without installing:
+
+```bash
+uvx pull-request-fixer --help
+```
+
 ### Using pip
 
 ```bash
-pip install markdown-table-fixer
-```
-
-### Using uv (recommended for development)
-
-```bash
-uv pip install markdown-table-fixer
+pip install pull-request-fixer
 ```
 
 ### From source
 
 ```bash
-git clone https://github.com/lfreleng-actions/markdown-table-fixer.git
-cd markdown-table-fixer
-pip install -e .
+git clone https://github.com/lfreleng-actions/pull-request-fixer.git
+cd pull-request-fixer
+uv tool install .
 ```
 
-### In a virtual environment
+## Requirements
 
-```bash
-# Create virtual environment
-python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+- Python 3.10 or higher
+- A GitHub token; see the [README](README.md#authentication) for the
+  access it needs
+- `git` on `PATH` for `--fix-files`, except with
+  `--update-method api --pr-content-only`
+- For signed commits with the default `git` update method, a working
+  signing setup in your global Git configuration (for example an SSH key
+  loaded in `ssh-agent`, or `gpg-agent`)
 
-# Install
-pip install markdown-table-fixer
-```
+## Running in GitHub Actions
 
-## Pre-commit Integration
-
-### Basic Setup
-
-1. Add to your `.pre-commit-config.yaml`:
+The tool has no GitHub Action wrapper; install and run the CLI in a
+workflow step. This example fixes the titles of blocked pull requests
+across the repository owner's organization every weekday morning:
 
 ```yaml
-repos:
-  - repo: https://github.com/lfreleng-actions/markdown-table-fixer
-    rev: v1.0.0  # Use latest version
-    hooks:
-      - id: markdown-table-fixer
-```
+name: 'Fix blocked pull requests'
 
-1. Install the hooks:
-
-```bash
-pre-commit install
-```
-
-1. Run on all files (optional):
-
-```bash
-pre-commit run markdown-table-fixer --all-files
-```
-
-### Available Hooks
-
-#### markdown-table-fixer (auto-fix)
-
-Automatically fixes table formatting issues:
-
-```yaml
-- id: markdown-table-fixer
-  # Optional: customize behavior
-  args: [lint, ., --fix]
-```
-
-#### markdown-table-fixer-check (validation)
-
-Checks for issues without fixing (useful for CI):
-
-```yaml
-- id: markdown-table-fixer-check
-  # Fails if issues found, doesn't change files
-```
-
-### Advanced Configuration
-
-#### Limit to specific directories
-
-```yaml
-- id: markdown-table-fixer
-  files: ^docs/.*\.md$  # Docs directory
-```
-
-#### Run on specific file types
-
-```yaml
-- id: markdown-table-fixer
-  files: '\.md$|\.markdown$'  # Default behavior
-```
-
-#### Skip specific files
-
-```yaml
-- id: markdown-table-fixer
-  exclude: ^vendor/|^third_party/
-```
-
-## CI/CD Integration
-
-### GitHub Actions
-
-Create `.github/workflows/markdown-tables.yaml`:
-
-```yaml
-name: Markdown Tables
-
+# yamllint disable-line rule:truthy
 on:
-  pull_request:
-    paths:
-      - '**.md'
-      - '**.markdown'
+  schedule:
+    - cron: '0 6 * * 1-5'
+  workflow_dispatch:
+
+permissions: {}
 
 jobs:
-  check-tables:
+  fix-titles:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      # yamllint disable-line rule:line-length
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install markdown-table-fixer
-        run: pip install markdown-table-fixer
-
-      - name: Check markdown tables
-        run: markdown-table-fixer lint . --check
+      - name: 'Fix pull request titles'
+        env:
+          GITHUB_TOKEN: ${{ secrets.PR_FIXER_TOKEN }}
+          ORG: ${{ github.repository_owner }}
+        run: |
+          uvx pull-request-fixer@0.1.7 "$ORG" --fix-title
 ```
 
-### GitLab CI
+Notes:
 
-Add to `.gitlab-ci.yml`:
-
-```yaml
-markdown-tables:
-  image: python:3.11
-  script:
-    - pip install markdown-table-fixer
-    - markdown-table-fixer lint . --check
-  only:
-    changes:
-      - "**/*.md"
-```
-
-### Jenkins
-
-Add to `Jenkinsfile`:
-
-```groovy
-stage('Check Markdown Tables') {
-    steps {
-        sh '''
-            pip install markdown-table-fixer
-            markdown-table-fixer lint . --check
-        '''
-    }
-}
-```
-
-### CircleCI
-
-Add to `.circleci/config.yml`:
-
-```yaml
-jobs:
-  markdown-tables:
-    docker:
-      - image: python:3.11
-    steps:
-      - checkout
-      - run:
-          name: Install markdown-table-fixer
-          command: pip install markdown-table-fixer
-      - run:
-          name: Check tables
-          command: markdown-table-fixer lint . --check
-```
+- The workflow's own `GITHUB_TOKEN` only covers the repository that runs
+  the workflow. To scan and update an organization, store a personal
+  access token or GitHub App token with the access listed in the
+  [README](README.md#authentication) as a secret, here `PR_FIXER_TOKEN`.
+- Pin actions to commit SHAs and the tool to a version, as shown.
+- Pass values such as the organization through `env:` rather than
+  expanding `${{ }}` expressions inside `run:`, to avoid template
+  injection.
+- A runner has no signing keys, so use `--bot-identity` or
+  `--disable-signing` with `--fix-files`, or `--update-method api` for
+  pull requests whose branch lives in the base repository.
+- Try a new configuration with `--dry-run` from `workflow_dispatch` first.
 
 ## Development Setup
 
@@ -219,222 +123,104 @@ jobs:
 
 - Python 3.10 or higher
 - Git
-- uv (recommended) or pip
+- [uv](https://docs.astral.sh/uv/)
+- [prek](https://github.com/j178/prek)
 
 ### Full Development Environment
 
 ```bash
-# Clone the repository
-git clone https://github.com/lfreleng-actions/markdown-table-fixer.git
-cd markdown-table-fixer
+git clone https://github.com/lfreleng-actions/pull-request-fixer.git
+cd pull-request-fixer
 
-# Create virtual environment
-uv venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+# Install the package with the test and lint dependencies
+uv sync --extra dev
 
-# Install with development dependencies
-uv pip install -e ".[dev]"
-
-# Install pre-commit hooks
-pre-commit install
+# Install the Git hooks
+prek install -t pre-commit -t commit-msg
 ```
 
 ### Running Tests
 
 ```bash
-# Run all tests
-pytest
+# Unit tests, with coverage
+uv run pytest
 
-# Run with coverage
-pytest --cov=markdown_table_fixer
+# A single test file
+uv run pytest tests/test_file_fixer_comprehensive.py -v
 
-# Run specific test file
-pytest tests/test_table_parser.py -v
-
-# Run with verbose output
-pytest -vv
+# Offline CLI integration tests
+uv run bash scripts/integration-test.sh
 ```
 
 ### Code Quality Checks
 
 ```bash
-# Run all pre-commit hooks
-pre-commit run --all-files
+# All hooks
+prek run --all-files
 
-# Run specific checks
-ruff check src tests
-ruff format --check src tests
-mypy src
+# Individual tools
+uv run ruff check src tests scripts
+uv run ruff format --check src tests scripts
+uv run mypy src
 ```
 
 ### Building the Package
 
 ```bash
-# Install build tools
-pip install build
-
-# Build source distribution and wheel
-python -m build
-
-# Check the distribution
-pip install twine
-twine check dist/*
+uv build
 ```
+
+The build writes a source distribution and a wheel to `dist/`. hatch-vcs
+derives the version from the latest Git tag.
 
 ## Troubleshooting
 
-### Pre-commit hook not found
+### `pull-request-fixer: command not found`
 
-**Problem**: `[ERROR] markdown-table-fixer is not installed`
+`uv tool install` places the command in uv's tool directory. Run
+`uv tool update-shell` to add it to `PATH`, then open a new shell.
 
-**Solution**: Update pre-commit hooks:
+### `ModuleNotFoundError: No module named 'pytest'`
 
-```bash
-pre-commit autoupdate
-pre-commit clean
-pre-commit install
-```
+Install the development dependencies with `uv sync --extra dev`. Plain
+`uv sync` skips the `dev` extra.
 
-### Import errors
+### `GitHub token required`
 
-**Problem**: `ModuleNotFoundError: No module named 'markdown_table_fixer'`
+Set `GITHUB_TOKEN` or pass `--token`.
 
-**Solution**: Install the package first:
+### Git errors with `--fix-files`
 
-```bash
-pip install markdown-table-fixer
-# Or for development:
-pip install -e .
-```
+- `git: command not found`: install Git, or use
+  `--update-method api --pr-content-only` for pull requests whose branch
+  lives in the base repository.
+- Signing failures: make sure your signing agent is running, or pass
+  `--disable-signing` or `--bot-identity`.
+- `Push rejected`: someone pushed to the branch while the tool worked;
+  run it again.
 
-### Tool doesn't fix tables
+### macOS SSL errors
 
-**Problem**: Tool detects issues but doesn't fix them
-
-**Solution**: Use the `--fix` flag:
-
-```bash
-markdown-table-fixer lint --fix
-```
-
-Or use the auto-fix pre-commit hook:
-
-```yaml
-- id: markdown-table-fixer  # Not markdown-table-fixer-check
-```
-
-### Performance issues
-
-**Problem**: Tool is slow on large repositories
-
-**Solutions**:
-
-1. Limit to specific directories:
-
-   ```bash
-   markdown-table-fixer lint docs/
-   ```
-
-2. Use file filtering in pre-commit:
-
-   ```yaml
-   files: ^docs/.*\.md$
-   ```
-
-3. Exclude generated or vendor files:
-
-   ```yaml
-   exclude: ^(vendor|node_modules)/
-   ```
-
-### Version conflicts
-
-**Problem**: Dependency conflicts with other packages
-
-**Solution**: Use a virtual environment:
-
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install markdown-table-fixer
-```
-
-### Pre-commit runs but doesn't fix
-
-**Problem**: Pre-commit shows "Passed" but tables aren't fixed
-
-**Check**:
-
-1. Verify you're using the fix hook (not check):
-
-   ```yaml
-   - id: markdown-table-fixer  # Correct
-   # Not: markdown-table-fixer-check
-   ```
-
-2. Check hook arguments:
-
-   ```yaml
-   - id: markdown-table-fixer
-     args: [lint, ., --fix]  # Ensure --fix is present
-   ```
-
-3. Run manually to see detailed output:
-
-   ```bash
-   markdown-table-fixer lint . --fix -v
-   ```
-
-## Platform-Specific Notes
-
-### Windows
-
-Use backslashes or forward slashes in paths:
-
-```bash
-markdown-table-fixer lint docs\
-# Or
-markdown-table-fixer lint docs/
-```
-
-Activate virtual environment:
-
-```bash
-.venv\Scripts\activate
-```
-
-### macOS
-
-If you encounter SSL errors, update certificates:
+Update the certificate bundle:
 
 ```bash
 pip install --upgrade certifi
-```
-
-### Linux
-
-Ensure Python 3.10+ is available:
-
-```bash
-python3 --version
-# If needed, install:
-sudo apt-get install python3.11  # Ubuntu/Debian
 ```
 
 ## Getting Help
 
 If you encounter issues not covered here:
 
-1. Check the [GitHub Issues](https://github.com/lfreleng-actions/markdown-table-fixer/issues)
-2. Review the [README](README.md) and [CONTRIBUTING](CONTRIBUTING.md)
-3. Open a new issue with:
-   - Your operating system and Python version
-   - The command you ran
-   - The error message or unexpected behavior
-   - A minimal example that reproduces the issue
+1. Check the
+   [GitHub Issues](https://github.com/lfreleng-actions/pull-request-fixer/issues)
+2. Review the [README](README.md) and [TESTING.md](TESTING.md)
+3. Open a new issue with your operating system, Python version, tool
+   version, the command you ran (without the token) and its output with
+   `--verbose`
 
 ## Next Steps
 
-- Review [FEATURES.md](FEATURES.md) for complete feature list
+- Review [FEATURES.md](FEATURES.md) for a feature overview
+- Read [IMPLEMENTATION.md](IMPLEMENTATION.md) for the internals
 - Read [CONTRIBUTING.md](CONTRIBUTING.md) if you want to contribute
 - Check [CHANGELOG.md](CHANGELOG.md) for version history

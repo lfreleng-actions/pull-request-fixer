@@ -5,30 +5,43 @@ SPDX-FileCopyrightText: 2025 The Linux Foundation
 
 # 🛠️ Pull Request Fixer
 
-A modern Python tool for automatically fixing pull request titles and bodies
-across GitHub organizations. Scans for blocked PRs and updates them based on
-commit messages.
+A Python command-line tool that repairs GitHub pull requests in place. It
+can work on one pull request or scan a whole GitHub organization, and it
+can:
 
-## Features
+- set a pull request's **title** to the subject line of its first commit
+- set a pull request's **description** to the body of its first commit,
+  minus Git trailers such as `Signed-off-by:`
+- apply regex **search/replace or line removal to files** on the pull
+  request's branch, then push the result back to the pull request
 
-- **🔍 Organization Scanning**: Scan entire GitHub organizations for blocked
-  pull requests
-- **✍️ Title Fixing**: Set PR titles to match the first commit's subject line
-- **📝 Body Fixing**: Set PR descriptions to match commit message bodies
-  (excluding trailers)
-- **📄 File Fixing**: Apply regex-based search/replace to files in PRs (clones,
-  modifies, amends commit, and force-pushes changes)
-- **🚫 Blocked PR Filtering**: Option to process PRs that cannot merge
-  (failing checks, conflicts, etc.)
-- **🚀 Parallel Processing**: Process PRs concurrently for
-  performance
-- **🔄 Dry Run Mode**: Preview changes before applying them
-- **📊 Progress Tracking**: Real-time progress updates during scanning
-- **🎯 Smart Parsing**: Automatically removes Git trailers (Signed-off-by, etc.)
-- **💬 PR Comments**: Automatically adds a comment to PRs explaining the
-  changes made
+A common use is unblocking automated pull requests (Dependabot,
+pre-commit.ci and similar) that fail a semantic title check or carry a
+small, mechanical defect across a whole organization.
+
+By default the tool only touches **blocked** pull requests: those with
+merge conflicts, those behind their base branch, or those with failing
+checks.
+
+## Contents
+
+- [Installation](#installation)
+- [Quick start](#quick-start)
+- [Targets](#targets)
+- [Which pull requests get processed](#which-pull-requests-get-processed)
+- [Fixing titles and descriptions](#fixing-titles-and-descriptions)
+- [Fixing files](#fixing-files)
+- [Pull request comments](#pull-request-comments)
+- [Options](#options)
+- [Authentication](#authentication)
+- [Exit status](#exit-status)
+- [Troubleshooting](#troubleshooting)
+- [Development](#development)
 
 ## Installation
+
+The tool needs Python 3.10 or newer. File fixing also needs `git` on
+`PATH`.
 
 ```bash
 pip install pull-request-fixer
@@ -37,608 +50,363 @@ pip install pull-request-fixer
 Or with uv:
 
 ```bash
-uv pip install pull-request-fixer
+uv tool install pull-request-fixer
 ```
 
-## Quick Start
+## Quick start
 
 ```bash
-# Set your GitHub token
 export GITHUB_TOKEN=ghp_xxxxxxxxxxxxx
 
-# Fix PR titles in an organization
-pull-request-fixer lfreleng-actions --fix-title
+# Preview title fixes for blocked pull requests across an organization
+pull-request-fixer myorg --fix-title --dry-run
 
-# Fix both titles and bodies
-pull-request-fixer lfreleng-actions --fix-title --fix-body
+# Fix titles and descriptions for real
+pull-request-fixer myorg --fix-title --fix-body
 
-# Show help (includes version)
-pull-request-fixer --help
+# Fix the title of one pull request
+pull-request-fixer https://github.com/owner/repo/pull/123 --fix-title
 
-# Fix files in a specific PR using regex
+# Remove 'type:' lines from the inputs section of a root action.yaml
 pull-request-fixer https://github.com/owner/repo/pull/123 \
   --fix-files \
-  --file-pattern './action.yaml' \
+  --file-pattern '^\./action\.yaml$' \
   --search-pattern '^\s+type:\s+\S' \
   --remove-lines \
-  --context-start 'inputs:' \
-  --context-end 'runs:' \
-  --dry-run \
-  --show-diff
-
-# Preview changes without applying (dry run)
-pull-request-fixer lfreleng-actions --fix-title --fix-body --dry-run
+  --context-start '^inputs:' \
+  --context-end '^runs:' \
+  --dry-run --show-diff
 ```
 
-## Usage
+The tool needs at least one of `--fix-title`, `--fix-body` or
+`--fix-files`; without one it prints a warning and exits.
 
-### Basic Commands
+## Targets
 
-**Scan and fix an organization:**
+`TARGET` is the only positional argument. It can be:
 
-```bash
-pull-request-fixer ORGANIZATION [OPTIONS]
-```
+| Form              | Example                                  | Mode         |
+| ----------------- | ---------------------------------------- | ------------ |
+| Organization name | `myorg`                                  | Organization |
+| Organization URL  | `https://github.com/myorg`               | Organization |
+| Pull request URL  | `https://github.com/owner/repo/pull/123` | Single PR    |
 
-**Fix a specific PR:**
+The tool works with GitHub.com; it does not support GitHub Enterprise
+Server hosts.
 
-```bash
-pull-request-fixer PR_URL [OPTIONS]
-```
+In **organization mode** the tool validates the token, scans every
+repository in the organization for open pull requests, then processes the
+matching pull requests in parallel.
 
-You can specify the target as:
+In **single PR mode** the tool processes the one pull request. Unless you
+pass `--no-blocked-only`, it reports a closed or merged pull request and
+exits without changing it; `--fix-files` always refuses closed pull
+requests.
 
-- Organization name: `myorg`
-- GitHub URL: `https://github.com/myorg`
-- GitHub URL with path: `https://github.com/myorg/`
-- Specific PR URL: `https://github.com/owner/repo/pull/123`
+## Which pull requests get processed
 
-### Fix Options
+Both modes process only blocked pull requests unless you pass
+`--no-blocked-only`. The tool reuses the blocking logic from
+[dependamerge][dependamerge], so both tools agree on which pull requests
+count as blocked. A pull request counts as blocked when it has:
 
-#### `--fix-title`
+- merge conflicts (`mergeable: CONFLICTING` or merge state `dirty`)
+- a head branch behind its base branch (merge state `behind`)
+- one or more failing status checks or check runs
 
-Updates the PR title to match the first line (subject) of the first commit message.
+The organization scan skips draft pull requests unless you pass
+`--include-drafts`.
 
-**Example:**
+In single PR mode, if the pull request is not blocked, the tool prints
+`pull request is NOT in a blocked state` and exits with status 1. Add
+`--no-blocked-only` to process it anyway.
 
-If the first commit message is:
+## Fixing titles and descriptions
+
+Both fixes read the **first** (oldest) commit on the pull request.
+
+### `--fix-title`
+
+Sets the pull request title to the first commit's subject line, when the
+two differ.
+
+### `--fix-body`
+
+Sets the pull request description to the first commit's message body,
+when the commit has a body and it differs from the current description.
+The tool strips trailing Git trailers from the body. It recognizes these
+trailers, case-insensitively:
+
+`Signed-off-by:`, `Co-authored-by:`, `Reviewed-by:`, `Tested-by:`,
+`Acked-by:`, `Cc:`, `Reported-by:`, `Suggested-by:`, `Fixes:`,
+`See-also:`, `Link:`, `Bug:`, `Change-Id:`
+
+For example, given this first commit:
 
 ```text
-Fix authentication bug in login handler
+Fix: Correct race condition in calendar refresh
 
-This commit addresses an issue where users couldn't
-log in with special characters in passwords.
+Serialize refreshes so concurrent updates cannot interleave.
 
-Signed-off-by: John Doe <john@example.com>
+Signed-off-by: Jane Doe <jane@example.com>
 ```
 
-This sets the PR title to:
+`--fix-title` sets the title to
+`Fix: Correct race condition in calendar refresh`, and `--fix-body` sets
+the description to
+`Serialize refreshes so concurrent updates cannot interleave.`
 
-```text
-Fix authentication bug in login handler
-```
+After updating a title or description, the tool asks GitHub to re-run any
+of the pull request's check runs that ended as failed, cancelled, timed
+out or action required. This lets checks such as a semantic pull request
+title check pick up the change. Re-running checks is best-effort; the
+tool ignores checks that GitHub refuses to re-run.
 
-#### `--fix-body`
+## Fixing files
 
-Updates the PR description to match the commit message body, excluding trailers.
+`--fix-files` edits files on the pull request's head branch. When you
+pass `--fix-files`, the tool **ignores** `--fix-title` and `--fix-body`;
+run the tool twice to do both.
 
-Using the same commit message above, this sets the PR body to:
+`--fix-files` needs:
 
-```text
-This commit addresses an issue where users couldn't
-log in with special characters in passwords.
-```
+- `--file-pattern`: a Python regular expression for the files to edit
+- `--search-pattern`: a Python regular expression for the content to
+  change
+- one action: `--replacement TEXT` or `--remove-lines`
 
-The `Signed-off-by:` trailer is automatically removed.
+### Selecting files
 
-#### `--fix-files`
+The tool tests `--file-pattern` with `re.search` against each file's
+repository-relative path, both as `path/to/file` and as
+`./path/to/file`. The pattern can match anywhere in the path, and `.`
+matches any character, so `./action.yaml` also matches
+`sub/dir/action.yaml`. Anchor and escape the pattern to match one file:
 
-Fixes files in pull requests using regex-based search and replace. This feature:
+<!-- markdownlint-disable MD013 -->
 
-1. Clones the PR branch
-2. Finds files matching `--file-pattern` (regex)
-3. Applies search/replace using `--search-pattern` and `--replacement`
-4. Amends the last commit with the changes
-5. Force-pushes the updated commit back to the PR
+| Pattern                | Matches                                     |
+| ---------------------- | ------------------------------------------- |
+| `^\./action\.yaml$`    | `action.yaml` at the repository root only   |
+| `(^\|/)action\.ya?ml$` | `action.yaml` or `action.yml` in any folder |
+| `\.github/workflows/`  | every file under `.github/workflows/`       |
 
-**Required options when using `--fix-files`:**
+<!-- markdownlint-enable MD013 -->
 
-- `--file-pattern`: Regex to match file paths (e.g., `'./action.yaml'` or
-  `'.*\.yaml$'`)
-- `--search-pattern`: Regex pattern to find in matched files
-- Either `--replacement` (text to replace matches) or `--remove-lines` (to
-  delete matching lines)
+By default the tool considers every matching file in the repository at
+the pull request's head commit. Add `--pr-content-only` to restrict it to
+files the pull request already changes.
 
-**Optional context options (for line removal):**
+### Search and replace
 
-- `--context-start`: Regex to define where the removal context begins (e.g., `'inputs:'`)
-- `--context-end`: Regex to define where the removal context ends (e.g., `'runs:'`)
-
-**Optional display options:**
-
-- `--show-diff`: Show unified diff output for file changes
-
-#### Update Methods (for `--fix-files` only)
-
-The tool supports two methods for applying file fixes:
-
-**API Method (default)** - Uses GitHub API to create new commits:
-
-```bash
-pull-request-fixer https://github.com/owner/repo/pull/123 \
-  --fix-files \
-  --file-pattern './action.yaml' \
-  --search-pattern 'pattern'
-```
-
-- Creates new commits via GitHub API
-- Shows as "Verified" by GitHub
-- No Git operations required
-- Faster and simpler
-- Default method for ease of use
-
-**Git Method** - Clones repo, amends commit, force-pushes:
-
-```bash
-pull-request-fixer https://github.com/owner/repo/pull/123 \
-  --fix-files \
-  --update-method git \
-  --file-pattern './action.yaml' \
-  --search-pattern 'pattern'
-```
-
-- Respects your local Git signing configuration
-- Amends the existing commit (preserves commit history)
-- Requires Git operations (clone, amend, push)
-- Use when you need to amend commits or use your own signature
-
-**Example - Remove type definitions from GitHub Actions:**
-
-```bash
-pull-request-fixer https://github.com/owner/repo/pull/123 \
-  --fix-files \
-  --file-pattern './action.yaml' \
-  --search-pattern '^\s+type:\s+\S' \
-  --remove-lines \
-  --context-start 'inputs:' \
-  --context-end 'runs:' \
-  --dry-run \
-  --show-diff
-```
-
-This will remove lines containing `type:` that appear between `inputs:` and `runs:`
-sections in `action.yaml` files.
-
-**Example - Replace text with regex:**
+With `--replacement`, the tool runs `re.sub` over each file's whole
+content with `re.MULTILINE` set, so `^` and `$` match at line boundaries.
+The replacement supports back-references such as `\1`. An empty
+replacement (`--replacement ''`) deletes the matched text.
 
 ```bash
 pull-request-fixer https://github.com/owner/repo/pull/456 \
   --fix-files \
-  --file-pattern '.*\.py$' \
-  --search-pattern 'old_function_name' \
+  --file-pattern '\.py$' \
+  --search-pattern '\bold_function_name\b' \
   --replacement 'new_function_name'
 ```
 
-### Common Usage Patterns
+### Line removal
 
-**Fix titles:**
+With `--remove-lines`, the tool deletes every line that matches
+`--search-pattern`. Two optional patterns limit where removal applies:
 
-```bash
-pull-request-fixer myorg --fix-title
-```
+- `--context-start`: removal begins after a line matching this pattern
+- `--context-end`: removal stops at a line matching this pattern
 
-**Fix both titles and bodies:**
+The tool always keeps the marker lines themselves. Without
+`--context-start`, removal applies from the top of the file. After a
+`--context-end` match, removal stays off until the next
+`--context-start` match.
 
-```bash
-pull-request-fixer myorg --fix-title --fix-body
-```
+### Update methods
 
-**Preview changes (dry run):**
+`--update-method` chooses how the tool writes file changes back:
 
-```bash
-pull-request-fixer myorg --fix-title --fix-body --dry-run
-```
+<!-- markdownlint-disable MD013 -->
 
-**Include draft PRs:**
+| Behaviour                | `git` (default)                         | `api`                                     |
+| ------------------------ | --------------------------------------- | ----------------------------------------- |
+| How                      | Clone, amend, `--force-with-lease` push | GitHub Git Data API                       |
+| Commit                   | Amends the branch's **last** commit     | Adds a **new** commit                     |
+| Commit message           | Unchanged                               | `Fix N file(s) in PR #N` with no sign-off |
+| Signing                  | Your local Git signing setup            | No signature from your keys               |
+| Pull requests from forks | Supported, with push access to the fork | Not supported                             |
+| File modes               | Preserved                               | Rewritten as `100644`                     |
+| Needs `git`              | Yes                                     | Unless `--pr-content-only` set            |
 
-```bash
-pull-request-fixer myorg --fix-title --include-drafts
-```
+<!-- markdownlint-enable MD013 -->
 
-**Use more workers for large organizations:**
+Because the `git` method amends the existing commit, it keeps that
+commit's message, author and any `Signed-off-by:` trailer, which suits
+repositories that enforce DCO sign-off or signed commits.
 
-```bash
-pull-request-fixer myorg --fix-title --workers 16
-```
+The `api` method reads and writes the head branch in the pull request's
+**base** repository, so it only works when the branch lives there, as it
+does for Dependabot and pre-commit.ci pull requests. Its commits carry no
+DCO sign-off.
 
-**Quiet mode for automation:**
+### Git identity and signing
 
-```bash
-pull-request-fixer myorg --fix-title --quiet
-```
+These flags apply to the `git` method only:
 
-**Verbose mode for debugging:**
+- default: copy `user.name`, `user.email` and the commit signing settings
+  (`commit.gpgsign`, `gpg.format`, `user.signingkey` and related keys)
+  from your global Git configuration
+- `--disable-signing`: use your identity but turn signing off
+- `--bot-identity`: commit as `pull-request-fixer
+  <noreply@linuxfoundation.org>` without signing
 
-```bash
-pull-request-fixer myorg --fix-files --file-pattern '*.yaml' \
-  --search-pattern '^\s+type:\s+\S' --remove-lines \
-  --verbose  # Shows detailed DEBUG logs including file operations
-```
+If your global Git configuration has no `user.name` or `user.email`, the
+tool falls back to the bot identity. You cannot combine `--bot-identity`
+with `--disable-signing`.
 
-**Process blocked PRs:**
+### Previewing changes
 
-<!-- write-good-disable -->
-```bash
-pull-request-fixer myorg --fix-title --blocked-only
-```
-<!-- write-good-enable -->
+`--dry-run` makes no changes. `--show-diff` prints a unified diff for each
+changed file; organization dry runs always print diffs.
 
-**Fix files across PRs:**
+## Pull request comments
 
-<!-- write-good-disable -->
-```bash
-pull-request-fixer myorg \
-  --fix-files \
-  --file-pattern './action.yaml' \
-  --search-pattern '^\s+type:\s+\S' \
-  --remove-lines \
-  --context-start 'inputs:' \
-  --context-end 'runs:' \
-  --blocked-only \
-  --dry-run
-```
-<!-- write-good-enable -->
-
-## PR Comments
-
-When the tool applies fixes (not in dry-run mode), it automatically adds a
-comment to the PR explaining the changes. This provides transparency and
-helps PR authors understand the automated modifications.
-
-**Example comment:**
+When the tool changes a pull request (not in dry-run mode), it posts a
+comment describing the change. For title and description fixes:
 
 ```markdown
 ## 🛠️ Pull Request Fixer
 
 Automatically fixed pull request metadata:
-- **Pull request title** updated to match first commit
-- **Pull request body** updated to match commit message
+- Updated pull request title to match commit
+- Updated pull request description to match commit body message
 
 ---
 *This fix was automatically applied by [pull-request-fixer](https://github.com/lfreleng-actions/pull-request-fixer)*
 ```
 
-The comment includes the items that changed. For
-example, if the title changed, that line will appear in the
-comment.
+For file fixes, the comment shows the command options used and the diff
+for each file. When the diffs total more than 40 lines, it lists the
+changed files instead.
 
 ## Options
 
 <!-- markdownlint-disable MD013 -->
-<!-- write-good-disable -->
 
-| Flag               | Short | Default         | Description                                           |
-| ------------------ | ----- | --------------- | ----------------------------------------------------- |
-| `--help`           | `-h`  |                 | Show help message and exit (displays version)         |
-| `--token`          | `-t`  | `$GITHUB_TOKEN` | GitHub personal access token                          |
-| `--fix-title`      |       | `false`         | Fix PR title to match first commit subject            |
-| `--fix-body`       |       | `false`         | Fix PR body to match commit message body              |
-| `--fix-files`      |       | `false`         | Fix files in PR using regex search/replace            |
-| `--file-pattern`   |       |                 | Regex to match file paths (required w/ `--fix-files`) |
-| `--search-pattern` |       |                 | Regex to search in files (required w/ `--fix-files`)  |
-| `--replacement`    |       |                 | Replacement string for matched patterns               |
-| `--remove-lines`   |       | `false`         | Remove matching lines instead of replacing            |
-| `--context-start`  |       |                 | Regex pattern for context start (for line removal)    |
-| `--context-end`    |       |                 | Regex pattern for context end (for line removal)      |
-| `--show-diff`      |       | `false`         | Show unified diff output for file changes             |
-| `--include-drafts` |       | `false`         | Include draft PRs in scan                             |
-| `--blocked-only`   |       | `false`         | Process PRs that cannot merge                         |
-| `--dry-run`        |       | `false`         | Preview changes without applying them                 |
-| `--workers`        | `-j`  | `4`             | Number of parallel workers (1-32)                     |
-| `--verbose`        | `-v`  | `false`         | Enable verbose output (DEBUG logs)                    |
-| `--quiet`          | `-q`  | `false`         | Suppress output except errors                         |
-| `--log-level`      |       | `INFO`          | Set logging level                                     |
-| `--version`        |       |                 | Show version and exit                                 |
+| Option              | Short | Default         | Description                                                       |
+| ------------------- | ----- | --------------- | ----------------------------------------------------------------- |
+| `--token`           | `-t`  | `$GITHUB_TOKEN` | GitHub token                                                      |
+| `--fix-title`       |       | off             | Set the title to the first commit's subject                       |
+| `--fix-body`        |       | off             | Set the description to the first commit's body, minus trailers    |
+| `--fix-files`       |       | off             | Edit files with regex; overrides `--fix-title` and `--fix-body`   |
+| `--file-pattern`    |       |                 | Regex for file paths (required with `--fix-files`)                |
+| `--search-pattern`  |       |                 | Regex for file content (required with `--fix-files`)              |
+| `--replacement`     |       |                 | Replacement text; supports back-references                        |
+| `--remove-lines`    |       | off             | Delete matching lines instead of replacing                        |
+| `--context-start`   |       |                 | Regex for the line after which removal begins                     |
+| `--context-end`     |       |                 | Regex for the line at which removal stops                         |
+| `--pr-content-only` |       | off             | Only edit files the pull request already changes                  |
+| `--show-diff`       |       | off             | Print a unified diff for each changed file                        |
+| `--update-method`   |       | `git`           | `git` (clone, amend, push) or `api` (new commit through the API)  |
+| `--disable-signing` |       | off             | `git` method: use your identity without signing                   |
+| `--bot-identity`    |       | off             | `git` method: commit as the bot identity without signing          |
+| `--include-drafts`  |       | off             | Include draft pull requests                                       |
+| `--no-blocked-only` |       | off             | Process pull requests regardless of blocked state                 |
+| `--dry-run`         |       | off             | Preview changes without applying them                             |
+| `--workers`         | `-j`  | CPU cores       | Parallel workers, 1-32; defaults to the performance core count    |
+| `--verbose`         | `-v`  | off             | Debug logging                                                     |
+| `--quiet`           | `-q`  | off             | Errors only                                                       |
+| `--log-level`       |       | `INFO`          | Logging level                                                     |
+| `--version`         |       |                 | Print the version and exit                                        |
+| `--help`            | `-h`  |                 | Print the version and help, then exit                             |
 
-<!-- write-good-enable -->
 <!-- markdownlint-enable MD013 -->
-
-## How It Works
-
-1. **Scan Organization**: Uses GitHub's GraphQL API to efficiently find
-   blocked pull requests
-2. **Fetch Commits**: Retrieves the first commit from each PR using the REST
-   API
-3. **Parse Messages**: Extracts commit subject and body, removing trailers
-4. **Apply Changes**: Updates PR titles and/or bodies in parallel
-5. **Report Results**: Shows summary of changes made
-
-### Trailers Removed
-
-The following Git trailer patterns are automatically removed from PR bodies:
-
-- `Signed-off-by:`
-- `Co-authored-by:`
-- `Reviewed-by:`
-- `Tested-by:`
-- `Acked-by:`
-- `Cc:`
-- `Reported-by:`
-- `Suggested-by:`
-- `Fixes:`
-- `See-also:`
-- `Link:`
-- `Bug:`
-- `Change-Id:`
 
 ## Authentication
 
-You need a GitHub personal access token with appropriate permissions:
+Pass a GitHub token with `--token` or the `GITHUB_TOKEN` environment
+variable. The token needs:
 
-1. Go to GitHub Settings → Developer settings → Personal access tokens
-2. Generate a new token with `repo` scope (or `public_repo` for public repos)
-3. Set the token as an environment variable:
+- read access to the repositories you scan, and `read:org` to list an
+  organization's repositories and read check status
+- write access to pull requests to change titles, descriptions and
+  comments
+- push access to the pull request's head repository for `--fix-files`;
+  with the `git` method on a pull request from a fork, that means the fork
 
-```bash
-export GITHUB_TOKEN=ghp_xxxxxxxxxxxxx
-```
+With a classic personal access token, grant `repo` (or `public_repo` for
+public repositories only) and `read:org`. In organization mode the tool
+validates the token first and warns when it cannot see those scopes.
+Tokens issued to GitHub Actions do not report scopes, so the tool skips
+that check for them.
 
-Or pass it via the `--token` flag:
+## Exit status
 
-```bash
-pull-request-fixer myorg --fix-title --token ghp_xxxxxxxxxxxxx
-```
+| Status | Meaning                                                             |
+| ------ | ------------------------------------------------------------------- |
+| `0`    | Run completed; also when single PR mode finds a closed or merged PR |
+| `1`    | Missing target, fix option or token; API error; PR not blocked      |
+| `2`    | Unknown option or out-of-range value, such as `--workers 33`        |
 
-## Examples
-
-### Example 1: Fix Titles in Organization
-
-```bash
-pull-request-fixer lfreleng-actions --fix-title
-```
-
-Output:
-
-```text
-🔍 Scanning organization: lfreleng-actions
-🔧 Will fix: titles
-
-📊 Found 15 blocked PRs to process
-
-🔍 Blocked PRs:
-   • lfreleng-actions/repo1#123: Update docs
-   • lfreleng-actions/repo2#456: Fix bug
-   ...
-
-🔄 Processing: lfreleng-actions/repo1#123
-   ✅ Updated title: docs: Add usage examples for CLI
-
-🔄 Processing: lfreleng-actions/repo2#456
-   ✅ Updated title: fix: Resolve authentication timeout issue
-
-✅ Fixed 15 PR(s)
-```
-
-### Example 2: Dry Run with Both Fixes
-
-```bash
-pull-request-fixer myorg --fix-title --fix-body --dry-run
-```
-
-Output:
-
-```text
-🔍 Scanning organization: myorg
-🔧 Will fix: titles, bodies
-🏃 Dry run mode: no changes made
-
-📊 Found 5 blocked PRs to process
-
-🔄 Processing: myorg/repo#123
-   Would update title:
-     From: Update documentation
-     To:   docs: Add usage examples for CLI
-   Would update body
-     Length: 245 chars
-
-✅ [DRY RUN] Would fix 5 PR(s)
-```
-
-### Example 3: High Performance Mode
-
-For large organizations, use more workers:
-
-```bash
-pull-request-fixer bigorg --fix-title --fix-body --workers 16 --verbose
-```
-
-## Performance
-
-- **Parallel Processing**: PRs processed concurrently for speed
-- **Efficient Queries**: GraphQL for scanning, REST for updates
-- **Memory Efficient**: Streaming results, no need to load all PRs
-- **Typical Speed**: 2-5 seconds per repository
-
-Example timing for 100 repositories with 50 blocked PRs using 8 workers:
-
-- Organization scan: ~30-60 seconds
-- PR processing: ~20-30 seconds
-- **Total: ~50-90 seconds**
-
-### Example 4: Fix Files in a Blocked PR
-
-This example removes invalid `type:` definitions from a GitHub composite action:
-
-```bash
-pull-request-fixer https://github.com/lfreleng-actions/make-action/pull/40 \
-  --fix-files \
-  --file-pattern './action.yaml' \
-  --search-pattern '^\s+type:\s+\S' \
-  --remove-lines \
-  --context-start 'inputs:' \
-  --context-end 'runs:' \
-  --dry-run \
-  --show-diff
-```
-
-Output:
-
-```text
-🔍 Processing PR: https://github.com/lfreleng-actions/make-action/pull/40
-🔧 Will fix: files
-🏃 Dry run mode: the tool will not apply changes
-
-📝 Fixing files in PR...
-```
-
-✅ Would fix 1 file
-📂 action.yaml
---- action.yaml
-+++ action.yaml
-@@ -10,7 +10,6 @@
-   repository:
-     description: 'Remote Git repository URL'
-     required: false
-
-- type: 'string'
-   debug:
-     description: 'Enable debug mode'
-     required: false
-- type: 'boolean'
-
-Dry-run completed!
-
-```text
-
-Without `--dry-run`, the output would show:
-
-```text
-✅ Updated 1 file
-🔀 action.yaml
---- action.yaml
-+++ action.yaml
-@@ -10,7 +10,6 @@
-   repository:
-     description: 'Remote Git repository URL'
-     required: false
--    type: 'string'
-   debug:
-     description: 'Enable debug mode'
-     required: false
--    type: 'boolean'
-```
-
-This would:
-
-1. Clone the PR branch
-2. Remove all lines containing `type:` from the `inputs:` section of `action.yaml`
-3. Amend the last commit with the changes
-4. Force-push the updated commit
-5. Add a comment to the PR explaining the fix
+An organization run exits `0` even when updating some pull requests
+fails. Check the `❌ Failed updates:` line in its summary.
 
 ## Troubleshooting
 
-### No PRs Found
+**`✅ No blocked PRs found!`** — the organization has no open pull
+requests that count as blocked. Use `--no-blocked-only` to process all
+open pull requests, or `--include-drafts` to include drafts.
 
-If the tool reports "No blocked PRs found", this could mean:
+**`pull request is NOT in a blocked state`** — single PR mode only
+processes blocked pull requests by default. Add `--no-blocked-only`.
 
-- The organization truly has no blocked PRs
-- You may need to adjust the scanner's definition of "blocked"
+**Token validation failed or scope warnings** — check that the token has
+not expired and has the access listed under
+[Authentication](#authentication).
 
-### Authentication Errors
+**`Push rejected` errors** — someone pushed to the pull request branch
+while the tool worked on it; run the tool again.
 
-If you see authentication errors:
+**Rate limiting** — reduce `--workers`, or wait for the limit to reset.
 
-Make sure your `GITHUB_TOKEN` environment variable contains a valid token
+**Unexpected files changed** — anchor `--file-pattern` as shown in
+[Selecting files](#selecting-files), and preview with
+`--dry-run --show-diff`.
 
-- Verify the token has `repo` or `public_repo` scope
-- Check that the token hasn't expired
-
-### Rate Limiting
-
-If you hit rate limits:
-
-- Reduce the number of workers: `--workers 2`
-- Wait for the rate limit to reset (shown in error message)
-- Use a token with higher rate limits
-
-### Permission Errors
-
-If updates fail:
-
-- Ensure your token has write access to the repositories
-- Check that you're not trying to update PRs in archived repos
-- Verify the PRs are not locked
+Use `--verbose` for debug logging. The `scripts/` directory holds
+diagnostic scripts for GraphQL and organization access problems; see
+[scripts/README.md](scripts/README.md).
 
 ## Development
-
-### Setup
 
 ```bash
 git clone https://github.com/lfreleng-actions/pull-request-fixer.git
 cd pull-request-fixer
-uv venv
-source .venv/bin/activate
-uv pip install -e ".[dev]"
+uv sync --extra dev
+prek install -t pre-commit -t commit-msg
+uv run pytest
+uv run bash scripts/integration-test.sh
 ```
 
-### Running Tests
-
-```bash
-pytest
-```
-
-### Running Pre-commit Hooks
-
-```bash
-pre-commit install
-pre-commit run --all-files
-```
-
-### Code Style
-
-The project uses:
-
-- `ruff` for linting and formatting
-- `mypy` for type checking
-- `pytest` for testing
-
-## Contributing
-
-Contributions are welcome! Please:
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests for new functionality
-5. Ensure all tests pass
-6. Submit a pull request
+The test dependencies live in the `dev` extra, so plain `uv sync` leaves
+`pytest` missing. See [CONTRIBUTING.md](CONTRIBUTING.md) for the
+contribution workflow, [SETUP.md](SETUP.md) for installation and CI use,
+[IMPLEMENTATION.md](IMPLEMENTATION.md) for the internals, and
+[TESTING.md](TESTING.md) for testing against live pull requests.
 
 ## License
 
 Apache-2.0
 
-## Support
+## Related projects
 
-- **Issues**:
-  <https://github.com/lfreleng-actions/pull-request-fixer/issues>
-- **Documentation**:
-  <https://github.com/lfreleng-actions/pull-request-fixer/blob/main/IMPLEMENTATION.md>
-- **Changelog**:
-  <https://github.com/lfreleng-actions/pull-request-fixer/blob/main/CHANGELOG.md>
+- [dependamerge][dependamerge]: bulk pull request management for GitHub
+  organizations; this tool uses its blocked pull request detection
+- [markdown-table-fixer][mtf]: fixes markdown table formatting; this
+  project began as a fork of its codebase
 
-## Related Projects
-
-- [dependamerge](https://github.com/lfit/dependamerge) - Automatically merge
-  automation PRs
-- [markdown-table-fixer][mtf-repo] - Fix markdown table formatting
-
-## Acknowledgments
-
-This project uses patterns from:
-
-- [dependamerge](https://github.com/lfit/dependamerge) for efficient
-  GitHub organization scanning
-- [markdown-table-fixer][mtf-repo] for the initial codebase structure
-
-[mtf-repo]: https://github.com/lfreleng-actions/markdown-table-fixer
+[dependamerge]: https://github.com/lfreleng-actions/dependamerge
+[mtf]: https://github.com/lfreleng-actions/markdown-table-fixer

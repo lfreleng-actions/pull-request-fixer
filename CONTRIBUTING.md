@@ -3,11 +3,15 @@ SPDX-License-Identifier: Apache-2.0
 SPDX-FileCopyrightText: 2025 The Linux Foundation
 -->
 
-# Contributing to Markdown Table Fixer
+# Contributing to Pull Request Fixer
 
-Thank you for your interest in contributing to Markdown Table Fixer! This
-document provides guidelines and instructions for contributing to the
-project.
+Thank you for your interest in contributing to `pull-request-fixer`. This
+document explains how to set up a development environment and what a
+pull request needs before maintainers can merge it.
+
+Contributions follow the `lfreleng-actions` organization guidelines:
+<https://github.com/lfreleng-actions/.github/blob/main/AGENTS.md>. Where
+this document and those guidelines disagree, the guidelines win.
 
 ## Code of Conduct
 
@@ -19,199 +23,188 @@ respectful and professional in all interactions.
 ### Prerequisites
 
 - Python 3.10 or higher
-- uv (recommended) or pip
-- Git
+- [uv](https://docs.astral.sh/uv/)
+- Git, with commit signing configured
+- [prek](https://github.com/j178/prek) to run the pre-commit hooks
 
 ### Development Setup
 
-1. Fork the repository on GitHub
-2. Clone your fork locally:
+1. Fork the repository on GitHub.
+2. Clone your fork:
 
    ```bash
-   git clone https://github.com/YOUR_USERNAME/markdown-table-fixer.git
-   cd markdown-table-fixer
+   git clone https://github.com/YOUR_USERNAME/pull-request-fixer.git
+   cd pull-request-fixer
    ```
 
-3. Create a virtual environment and install dependencies:
+3. Install the package and its development dependencies. The test
+   dependencies live in the `dev` extra, so plain `uv sync` is not
+   enough:
 
    ```bash
-   uv venv
-   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-   uv pip install -e ".[dev]"
+   uv sync --extra dev
    ```
 
-4. Install pre-commit hooks:
+4. Install the Git hooks:
 
    ```bash
-   pre-commit install
+   prek install -t pre-commit -t commit-msg
    ```
 
 ## Development Workflow
 
-### Creating a Branch
-
-Create a feature branch for your changes:
-
-```bash
-git checkout -b feature/your-feature-name
-```
-
-Use descriptive branch names:
-
-- `feature/` - for new features
-- `fix/` - for bug fixes
-- `docs/` - for documentation changes
-- `refactor/` - for code refactoring
-
 ### Making Changes
 
-1. Write your code following the project's coding standards
-2. Add or update tests as needed
-3. Update documentation if you're changing functionality
-4. Run the test suite to ensure nothing breaks
+1. Create a branch for your change.
+2. Write the code, following the coding standards below.
+3. Add or update tests.
+4. Update the documentation when behaviour or options change: the
+   [README](README.md) documents every option.
+5. Run the tests and hooks.
 
 ### Testing
 
-Run tests with pytest:
-
 ```bash
-pytest
+uv run pytest
+uv run bash scripts/integration-test.sh
 ```
 
-Run tests with coverage:
-
-```bash
-pytest --cov=markdown_table_fixer --cov-report=html
-```
+The unit tests mock the GitHub API and need no token. Changes to the
+GitHub flows also need a manual check against real pull requests; see
+[TESTING.md](TESTING.md).
 
 ### Code Quality
 
-This project uses the following tools to maintain code quality:
-
-- **ruff**: Code linting and formatting
-- **mypy**: Static type checking
-- **pre-commit**: Automated checks before commits
-
-Run all checks:
+Run every hook against the files you changed:
 
 ```bash
-pre-commit run --all-files
+prek run --files <changed files>
 ```
+
+Or against the whole repository:
+
+```bash
+prek run --all-files
+```
+
+The hooks include ruff, mypy, basedpyright, markdownlint, write-good,
+shellcheck, actionlint, reuse, gitlint and pytest. Do not bypass them
+with `--no-verify`.
 
 ### Commit Messages
 
-Follow these commit message conventions:
+Commit subjects use a capitalized
+[Conventional Commits](https://www.conventionalcommits.org/) type, which
+gitlint enforces:
 
-- Use the imperative mood ("Add feature" not "Added feature")
-- Start with a capital letter
-- Keep the first line under 72 characters
-- Include a blank line between summary and description
-- Reference issues and pull requests when relevant
+```text
+Type(scope): Imperative description
+```
+
+The allowed types are `Fix`, `Feat`, `Chore`, `Docs`, `Style`,
+`Refactor`, `Perf`, `Test`, `Revert`, `CI` and `Build`. The scope is
+optional.
+
+- Use the imperative mood ("Add option", not "Added option").
+- Keep the subject short and omit a trailing period.
+- Separate the subject from the body with a blank line, and wrap the body
+  at 72 characters.
+- Explain what the change does and why in the body.
 
 Example:
 
 ```text
-Add support for nested tables
+Docs: Explain anchoring in file patterns
 
-This commit adds the ability to parse and fix tables inside
-other markdown structures like lists or blockquotes.
-
-Fixes #123
+An unanchored --file-pattern matches anywhere in a path, so
+'./action.yaml' also selects action.yaml files in subdirectories.
+Show anchored patterns in the README examples.
 ```
 
-All commits must include a sign-off:
+### Signing and Sign-off
+
+Every commit must carry a cryptographic signature and a Developer
+Certificate of Origin sign-off:
 
 ```bash
-git commit -s -m "Your commit message"
+git commit -S -s
 ```
 
-This adds a `Signed-off-by` line certifying that you have the right to
-submit the code under the project's license.
+`-S` signs the commit and `-s` adds the `Signed-off-by` line certifying
+that you have the right to submit the code under the project's license.
+Maintainers cannot merge a pull request containing any unsigned commit.
+
+If an AI coding agent helped write the change, add a `Co-authored-by`
+trailer naming it.
 
 ## Pull Request Process
 
-1. Update the README.md with details of changes if needed
-2. Ensure all tests pass and code quality checks succeed
-3. Update the documentation with any new features or changes
-4. Submit a pull request to the `main` branch
+1. Ensure tests and hooks pass.
+2. Open a pull request against `main`.
+3. For a pull request with a single commit, make the pull request title
+   identical to the commit subject; a CI check enforces this.
+4. Respond to review feedback. A maintainer from the Release Engineering
+   team must approve the pull request before it merges.
 
-### Pull Request Guidelines
-
-- Include a clear description of what the PR does
-- Reference any related issues
-- Ensure CI checks pass
-- Keep PRs focused on a single feature or fix
-- Be responsive to feedback and requests for changes
+Keep each pull request focused on one change.
 
 ## Coding Standards
 
 ### Python Style
 
-- Follow PEP 8 guidelines
-- Use type hints for function arguments and return values
-- Line length limit: 80 characters
-- Use double quotes for strings
-- Sort imports alphabetically within groups
+- ruff handles linting and formatting; the line length limit is 80
+  characters
+- type hints on every function; mypy runs in strict mode
+- double quotes for strings
+- new source files need SPDX license headers; `reuse lint` checks them
 
 ### Documentation
 
-- Use docstrings for all public modules, classes, and functions
-- Follow Google-style docstring format
-- Include examples in docstrings when helpful
-- Keep documentation up to date with code changes
+- Docstrings for all public modules, classes and functions, in Google
+  style
+- Keep the README options table in step with the CLI
 
 Example docstring:
 
 ```python
-def parse_table(content: str) -> MarkdownTable:
-    """Parse a markdown table from content.
+def parse_commit_message(message: str) -> tuple[str, str]:
+    """Parse a commit message into subject and body.
 
     Args:
-        content: The markdown content containing a table
+        message: Full commit message
 
     Returns:
-        A parsed MarkdownTable object
-
-    Raises:
-        TableParseError: If the content fails to parse as a table
-
-    Example:
-        >>> table = parse_table("| A | B |\n|---|---|\n| 1 | 2 |")
-        >>> print(table.column_count)
-        2
+        Tuple of (subject, body) where body has trailers removed
     """
-    ...
 ```
 
 ## Test Coverage
 
-- Write tests for all new features
-- Maintain or improve code coverage
-- Use descriptive test names
-- Follow the Arrange-Act-Assert pattern
-- Use fixtures for common test setup
+- Write tests for new features and bug fixes
+- Mock GitHub API calls; unit tests must not need network access
+- Use descriptive test names and fixtures for shared setup
 
 ## Reporting Issues
 
 ### Bug Reports
 
-When reporting bugs, include:
+Include:
 
-- A clear description of the issue
-- Steps to reproduce the problem
-- Expected vs actual behavior
-- Your environment (OS, Python version, etc.)
-- Relevant code samples or markdown files
-- Error messages or stack traces
+- a clear description of the problem
+- the command you ran, with the token removed
+- the output with `--verbose`
+- expected and actual behaviour
+- your environment (OS, Python version, tool version)
+
+Report security vulnerabilities privately; see [SECURITY.md](SECURITY.md).
 
 ### Feature Requests
 
-When suggesting features, include:
+Include:
 
-- A clear description of the feature
-- The problem it solves or use case it addresses
-- Examples of how it would work
-- Any alternative solutions you've considered
+- the problem the feature solves
+- how you would expect it to work
+- any alternatives you considered
 
 ## License
 
@@ -220,7 +213,5 @@ fall under the Apache License 2.0.
 
 ## Questions?
 
-If you have questions about contributing, please open an issue on GitHub or
-reach out to the maintainers.
-
-Thank you for contributing to Markdown Table Fixer!
+If you have questions about contributing, please open an issue on GitHub
+or reach out to the maintainers.
