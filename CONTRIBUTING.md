@@ -22,7 +22,7 @@ respectful and professional in all interactions.
 
 ### Prerequisites
 
-- Python 3.10 or higher
+- Python 3.11 or higher
 - [uv](https://docs.astral.sh/uv/)
 - Git, with commit signing configured
 - [prek](https://github.com/j178/prek) to run the pre-commit hooks

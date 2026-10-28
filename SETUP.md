@@ -60,7 +60,7 @@ uv tool install .
 
 ## Requirements
 
-- Python 3.10 or higher
+- Python 3.11 or higher
 - A GitHub token; see the [README](README.md#authentication) for the
   access it needs
 - `git` on `PATH` for `--fix-files`, except with
@@ -121,7 +121,7 @@ Notes:
 
 ### Prerequisites
 
-- Python 3.10 or higher
+- Python 3.11 or higher
 - Git
 - [uv](https://docs.astral.sh/uv/)
 - [prek](https://github.com/j178/prek)
