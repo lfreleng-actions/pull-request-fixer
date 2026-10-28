@@ -40,7 +40,7 @@ checks.
 
 ## Installation
 
-The tool needs Python 3.10 or newer. File fixing also needs `git` on
+The tool needs Python 3.11 or newer. File fixing also needs `git` on
 `PATH`, except with `--update-method api --pr-content-only`.
 
 ```bash
