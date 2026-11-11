@@ -242,10 +242,13 @@ class ProgressTracker:
 
             if self.errors_count > 0:
                 text.append(f" | {self.errors_count} errors", style="yellow")
-        elif self.total_repositories > 0 and not self.show_pr_stats:
+        elif (
+            self.total_repositories > 0
+            and not self.show_pr_stats
+            and self.errors_count > 0
+        ):
             # Show errors even when PR stats are disabled
-            if self.errors_count > 0:
-                text.append(f"{self.errors_count} errors", style="yellow")
+            text.append(f"{self.errors_count} errors", style="yellow")
 
         text.append("\n")
 
