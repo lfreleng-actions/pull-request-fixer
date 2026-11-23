@@ -82,9 +82,13 @@ prek run --files <changed files>
 ```
 
 The hooks include ruff, mypy, basedpyright, markdownlint, write-good,
-shellcheck, actionlint, gitleaks, reuse, gitlint and pytest. basedpyright
-checks the whole project and fails on warnings as well as errors. Do not
-bypass the hooks with `--no-verify`.
+shellcheck, actionlint, gitleaks, reuse and gitlint. basedpyright checks
+the whole project and fails on warnings as well as errors. Do not bypass
+the hooks with `--no-verify`. The hooks do not run the tests. Run
+`uv run pytest` locally before you push. CI runs the tests too, but
+only on pull requests that change a file outside `.github/`, the root
+dotfiles and `tox.ini`; see the path filters in
+`.github/workflows/build-test.yaml`.
 
 ### Commit Messages
 

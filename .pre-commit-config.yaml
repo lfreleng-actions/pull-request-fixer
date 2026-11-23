@@ -8,16 +8,12 @@ ci:
   # aislop also runs engines that can call the network at scan time
   # (dependency audits), so it cannot run in the sandbox either.
   #
-  # pytest runs through 'uv run' against the project's own environment,
-  # which the sandbox does not provide.
-  #
   # Adapted from actions-template for a Python-only repository: the
   # template's eslint and Go hooks, and the manifest guard they share,
   # are omitted because this repository has no JavaScript or Go sources.
   skip:
     - gha-workflow-linter
     - aislop
-    - pytest
   autofix_commit_msg: |
     Chore: Pre-commit autofixes
 
@@ -237,19 +233,6 @@ repos:
         entry: aislop ci --human
         language: node
         additional_dependencies: ["aislop@0.13.1"]
-        pass_filenames: false
-        always_run: true
-
-  # Run the unit tests before each commit. A local system hook using the
-  # project's own uv environment, so it needs 'uv sync --extra dev' first;
-  # skipped on pre-commit.ci (see ci.skip above).
-  - repo: local
-    hooks:
-      - id: pytest
-        name: pytest
-        entry: uv
-        args: [run, pytest, --tb=short, -q]
-        language: system
         pass_filenames: false
         always_run: true
 
