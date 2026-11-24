@@ -51,7 +51,7 @@ jobs:
       - name: 'Build Python project'
         id: python-build
         # yamllint disable-line rule:line-length
-        uses: lfreleng-actions/python-build-action@cb2041b440894cd2af2b3e90c2f14ff75f0fccbe  # v2.1.3
+        uses: lfreleng-actions/python-build-action@6853a39de0cc11ca089f56ec3cfa2e9fae8157ce  # v2.1.4
 
   ### Test the CLI Tool ###
   cli-tests:
